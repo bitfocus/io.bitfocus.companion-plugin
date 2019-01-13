@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>companion-plugin PI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="sdpi.css">
+    <script src="common.js"></script>
+</head>
+
+<body>
+ 	<div class="sdpi-wrapper">
+		<div class="sdpi-item">
+			<details class="message info" id="companion_connect" style="display:none">
+		  	<summary></summary>
+			</details>
+		</div>
+	</div>
+    <script>
+        var pluginAction = null;
+
+        if ($SD) {
+            $SD.on('connected', function (jsonObj) {
+                uuid = jsonObj['uuid'];
+                if (jsonObj['plugin']) {
+                    pluginAction = jsonObj.plugin['action'];
+                }
+
+                var payload = {
+									command: 'get_connection',
+									values: {}
+								};
+                $SD.api.sendToPlugin(uuid, pluginAction, payload);
+            });
+
+						$SD.on('sendToPropertyInspector', function (m) {
+							if (m.payload.connection !== undefined) {
+								console.log("Update:", m.payload);
+								var el = document.getElementById('companion_connect');
+								el.innerHTML = '<summary>' + m.payload.connection + '</summary>';
+								el.className = 'message ' + m.payload.class;
+								el.style = '';
+							}
+						});
+        };
+    </script>
+
+</body>
+
+</html>
