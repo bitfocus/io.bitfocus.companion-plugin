@@ -8,7 +8,7 @@
           "Image": "companionIcon"
         }
       ],
-      "SupportedInMultiActions": true,
+      "SupportedInMultiActions": false,
       "Tooltip": "Control anything in companion",
       "UUID": "io.bitfocus.companion-plugin.action"
     }
@@ -30,7 +30,7 @@
   "Icon": "pluginIcon",
   "URL": "https://bitfocus.io/companion/",
   "PropertyInspectorPath": "companion-plugin_pi.html",
-  "Version": "1.0",
+  "Version": "1.0.1",
   "OS": [
     {
       "Platform": "mac",
