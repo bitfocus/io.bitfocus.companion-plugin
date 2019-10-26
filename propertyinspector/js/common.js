@@ -1,22 +1,80 @@
-/* global debug, Color, connectSocket, $SD */
+/* global $SD, $localizedStrings */
+/* exported, $localizedStrings */
 /* eslint no-undef: "error",
   curly: 0,
-  no-caller: 0
+  no-caller: 0,
+  wrap-iife: 0,
+  one-var: 0,
+  no-var: 0,
+  vars-on-top: 0
 */
 
-var DestinationEnum = Object.freeze({
-    HARDWARE_AND_SOFTWARE: 0,
-    HARDWARE_ONLY: 1,
-    SOFTWARE_ONLY: 2
-});
+// don't change this to let or const, because we rely on var's hoisting
+// eslint-disable-next-line no-use-before-define, no-var
+var $localizedStrings = $localizedStrings || {},
+    REMOTESETTINGS = REMOTESETTINGS || {},
+    DestinationEnum = Object.freeze({
+        HARDWARE_AND_SOFTWARE: 0,
+        HARDWARE_ONLY: 1,
+        SOFTWARE_ONLY: 2
+    }),
+    // eslint-disable-next-line no-unused-vars
+    isQT = navigator.appVersion.includes('QtWebEngine'),
+    debug = debug || false,
+    debugLog = function () {},
+    MIMAGECACHE = MIMAGECACHE || {};
 
-var debug = debug || false,
-    debugLog;
-debug = false;
-if (debug) debugLog = console.log.bind(window.console);
-else debugLog = function () {};
+const setDebugOutput = (debug) => (debug === true) ? console.log.bind(window.console) : function () {};
+debugLog = setDebugOutput(debug);
+
+// Create a wrapper to allow passing JSON to the socket
+WebSocket.prototype.sendJSON = function (jsn, log) {
+    if (log) {
+        console.log('SendJSON', this, jsn);
+    }
+    // if (this.readyState) {
+    this.send(JSON.stringify(jsn));
+    // }
+};
+
+/* eslint no-extend-native: ["error", { "exceptions": ["String"] }] */
+String.prototype.lox = function () {
+    var a = String(this);
+    try {
+        a = $localizedStrings[a] || a;
+    } catch (b) {}
+    return a;
+};
+
+String.prototype.sprintf = function (inArr) {
+    let i = 0;
+    const args = (inArr && Array.isArray(inArr)) ? inArr : arguments;
+    return this.replace(/%s/g, function () {
+        return args[i++];
+    });
+};
+
+// eslint-disable-next-line no-unused-vars
+const sprintf = (s, ...args) => {
+    let i = 0;
+    return s.replace(/%s/g, function () {
+        return args[i++];
+    });
+};
+
+const loadLocalization = (lang, pathPrefix, cb) => {
+    Utils.readJson(`${pathPrefix}${lang}.json`, function (jsn) {
+        const manifest = Utils.parseJson(jsn);
+        $localizedStrings = manifest && manifest.hasOwnProperty('Localization') ? manifest['Localization'] : {};
+        debugLog($localizedStrings);
+        if (cb && typeof cb === 'function') cb();
+    });
+}
 
 var Utils = {
+    sleep: function (milliseconds) {
+        return new Promise(resolve => setTimeout(resolve, milliseconds));
+    },
     isUndefined: function (value) {
         return typeof value === 'undefined';
     },
@@ -61,21 +119,33 @@ var Utils = {
         return value === null;
     },
     toInteger: function (value) {
-        var INFINITY = 1 / 0,
+        const INFINITY = 1 / 0,
             MAX_INTEGER = 1.7976931348623157e308;
         if (!value) {
             return value === 0 ? value : 0;
         }
         value = Number(value);
         if (value === INFINITY || value === -INFINITY) {
-            var sign = value < 0 ? -1 : 1;
+            const sign = value < 0 ? -1 : 1;
             return sign * MAX_INTEGER;
         }
         return value === value ? value : 0;
     }
 };
-Utils.minmax = function (v, min, max) {
+Utils.minmax = function (v, min = 0, max = 100) {
     return Math.min(max, Math.max(min, v));
+};
+
+Utils.rangeToPercent = function (value, min, max) {
+    return ((value - min) / (max - min));
+};
+
+Utils.percentToRange = function (percent, min, max) {
+    return ((max - min) * percent + min);
+};
+
+Utils.setDebugOutput = (debug) => {
+    return (debug === true) ? console.log.bind(window.console) : function () {};
 };
 
 Utils.randomComponentName = function (len = 6) {
@@ -95,6 +165,11 @@ Utils.randomString = function (len = 8) {
         })
         .join('');
 };
+
+Utils.rs = function (len = 8) {
+    return [...Array(len)].map(i => (~~(Math.random() * 36)).toString(36)).join('');
+};
+
 Utils.randomLowerString = function (len = 8) {
     return Array.apply(0, Array(len))
         .map(function () {
@@ -111,6 +186,32 @@ Utils.capitalize = function (str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 };
 
+Utils.measureText = (text, font) => {
+    const canvas = Utils.measureText.canvas || (Utils.measureText.canvas = document.createElement("canvas"));
+    const ctx = canvas.getContext("2d");
+    ctx.font = font || 'bold 10pt system-ui';
+    return ctx.measureText(text).width;
+};
+
+Utils.fixName = (d, dName) => {
+    let i = 1;
+    const base = dName;
+    while (d[dName]) {
+        dName = `${base} (${i})`
+        i++;
+    }
+    return dName;
+};
+
+Utils.isEmptyString = (str) => {
+    return (!str || str.length === 0);
+};
+
+Utils.isBlankString = (str) => {
+    return (!str || /^\s*$/.test(str));
+};
+
+Utils.log = function () {};
 Utils.count = 0;
 Utils.counter = function () {
     return (this.count += 1);
@@ -123,8 +224,8 @@ Utils.prefix = Utils.randomString() + '_';
 
 Utils.getUrlParameter = function (name) {
     const nameA = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
-    var regex = new RegExp('[\\?&]' + nameA + '=([^&#]*)');
-    var results = regex.exec(location.search.replace(/\/$/, ''));
+    const regex = new RegExp('[\\?&]' + nameA + '=([^&#]*)');
+    const results = regex.exec(location.search.replace(/\/$/, ''));
     return results === null
         ? null
         : decodeURIComponent(results[1].replace(/\+/g, ' '));
@@ -141,14 +242,24 @@ Utils.debounce = function (func, wait = 100) {
 };
 
 Utils.getRandomColor = function () {
-    return '#' + (((1 << 24) * Math.random()) | 0).toString(16);
-    // var letters = '0123456789ABCDEF';
-    // var color = '#';
-    // for (var i = 0; i < 6; i++) {
-    //   color += letters[Math.floor(Math.random() * 16)];
-    // }
-    // return color;
+    return '#' + (((1 << 24) * Math.random()) | 0).toString(16).padStart(6, 0); // just a random color padded to 6 characters
 };
+
+/*
+    Quick utility to lighten or darken a color (doesn't take color-drifting, etc. into account)
+    Usage:
+    fadeColor('#061261', 100); // will lighten the color
+    fadeColor('#200867'), -100); // will darken the color
+*/
+
+Utils.fadeColor = function (col, amt) {
+    const min = Math.min, max = Math.max;
+    const num = parseInt(col.replace(/#/g, ''), 16);
+    const r = min(255, max((num >> 16) + amt, 0));
+    const g = min(255, max((num & 0x0000FF) + amt, 0));
+    const b = min(255, max(((num >> 8) & 0x00FF) + amt, 0));
+    return '#' + (g | (b << 8) | (r << 16)).toString(16).padStart(6, 0);
+}
 
 Utils.lerpColor = function (startColor, targetColor, amount) {
     const ah = parseInt(startColor.replace(/#/g, ''), 16);
@@ -181,6 +292,36 @@ Utils.hexToRgb = function (hex) {
     };
 };
 
+Utils.rgbToHex = (r, g, b) => '#' + [r, g, b].map(x => {
+    return x.toString(16).padStart(2,0)
+}).join('')
+
+
+Utils.nscolorToRgb = function (rP, gP, bP) {
+    return {
+        r : Math.round(rP * 255),
+        g : Math.round(gP * 255),
+        b : Math.round(bP * 255)
+    }
+};
+
+Utils.nsColorToHex = function (rP, gP, bP) {
+    const c = Utils.nscolorToRgb(rP, gP, bP);
+    return Utils.rgbToHex(c.r, c.g, c.b);
+};
+
+Utils.miredToKelvin = function (mired) {
+    return Math.round(1e6 / mired);
+};
+
+Utils.kelvinToMired = function (kelvin, roundTo) {
+    return roundTo ? Utils.roundBy(Math.round(1e6 / kelvin), roundTo) : Math.round(1e6 / kelvin);
+};
+
+Utils.roundBy = function(num, x) {
+    return Math.round((num - 10) / x) * x;
+}
+
 Utils.getBrightness = function (hexColor) {
     // http://www.w3.org/TR/AERT#color-contrast
     if (typeof hexColor === 'string' && hexColor.charAt(0) === '#') {
@@ -193,7 +334,7 @@ Utils.getBrightness = function (hexColor) {
 Utils.readJson = function (file, callback) {
     var req = new XMLHttpRequest();
     req.onerror = function (e) {
-        console.log(`[Utils][readJson] Error while trying to read  ${file}`, e);
+        // Utils.log(`[Utils][readJson] Error while trying to read  ${file}`, e);
     };
     req.overrideMimeType('application/json');
     req.open('GET', file, true);
@@ -207,7 +348,7 @@ Utils.readJson = function (file, callback) {
 };
 
 Utils.loadScript = function (url, callback) {
-    var el = document.createElement('script');
+    const el = document.createElement('script');
     el.src = url;
     el.onload = function () {
         callback(url, true);
@@ -222,7 +363,7 @@ Utils.loadScript = function (url, callback) {
 Utils.parseJson = function (jsonString) {
     if (typeof jsonString === 'object') return jsonString;
     try {
-        var o = JSON.parse(jsonString);
+        const o = JSON.parse(jsonString);
 
         // Handle non-exception-throwing cases:
         // Neither JSON.parse(false) or JSON.parse(1234) throw errors, hence the type-checking,
@@ -284,19 +425,10 @@ Utils.getProperty = function (obj, dotSeparatedKeys, defaultValue) {
     return obj === undefined ? defaultValue : obj;
 };
 
-Utils.getProp = function (jsonObj, path, separator) {
-    try {
-        separator = separator || '.';
-        return path
-            .replace('[', separator)
-            .replace(']', '')
-            .split(separator)
-            .reduce(function (obj, property) {
-                return obj[property];
-            }, jsonObj);
-    } catch (err) {
-        return undefined;
-    }
+Utils.getProp = (jsn, str, defaultValue = {}, sep = '.') => {
+    const arr = str.split(sep);
+    return arr.reduce((obj, key) =>
+        (obj && obj.hasOwnProperty(key)) ? obj[key] : defaultValue, jsn);
 };
 
 Utils.setProp = function (jsonObj, path, value) {
@@ -320,37 +452,11 @@ Utils.setProp = function (jsonObj, path, value) {
     return jsn;
 };
 
-/** createNestedObject( window, ["shapes", "triangle", "points"] );
- */
-var createNestedObject1 = function (base, names, values) {
-    for (var i in names) {
-        base = base[names[i]] = base[names[i]] || (values[i] || {});
-        console.log('[createNestedObject]', i, base, names[i], values[i]);
-    }
-};
-
-var createNestedObject = function (base, names, value) {
-    // If a value is given, remove the last name and keep it for later:
-    var lastName = arguments.length === 3 ? names.pop() : false;
-
-    // Walk the hierarchy, creating new objects where needed.
-    // If the lastName was removed, then the last object is not set yet:
-    for (var i = 0; i < names.length; i++) {
-        base = base[names[i]] = base[names[i]] || {};
-    }
-
-    // If a value was given, set it to the last name:
-    if (lastName) base = base[lastName] = value;
-
-    // Return the last object in the hierarchy:
-    return base;
-};
-
 Utils.getDataUri = function (url, callback, inCanvas, inFillcolor) {
     var image = new Image();
 
     image.onload = function () {
-        var canvas =
+        const canvas =
             inCanvas && Utils.isCanvas(inCanvas)
                 ? inCanvas
                 : document.createElement('canvas');
@@ -358,7 +464,7 @@ Utils.getDataUri = function (url, callback, inCanvas, inFillcolor) {
         canvas.width = this.naturalWidth; // or 'width' if you want a special/scaled size
         canvas.height = this.naturalHeight; // or 'height' if you want a special/scaled size
 
-        var ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d');
         if (inFillcolor) {
             ctx.fillStyle = inFillcolor;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -372,6 +478,72 @@ Utils.getDataUri = function (url, callback, inCanvas, inFillcolor) {
     };
 
     image.src = url;
+};
+
+/** Quick utility to inject a style to the DOM
+* e.g. injectStyle('.localbody { background-color: green;}')
+*/
+Utils.injectStyle = function (styles, styleId) {
+   const node = document.createElement('style');
+   const tempID = styleId || Utils.randomString(8);
+   node.setAttribute('id', tempID);
+   node.innerHTML = styles;
+   document.body.appendChild(node);
+   return node;
+};
+
+
+Utils.loadImage = function (inUrl, callback, inCanvas, inFillcolor) {
+    /** Convert to array, so we may load multiple images at once */
+    const aUrl = !Array.isArray(inUrl) ? [inUrl] : inUrl;
+    const canvas = inCanvas && inCanvas instanceof HTMLCanvasElement
+        ? inCanvas
+        : document.createElement('canvas');
+    var imgCount = aUrl.length - 1;
+    const imgCache = {};
+
+    var ctx = canvas.getContext('2d');
+    ctx.globalCompositeOperation = 'source-over';
+
+    for (let url of aUrl) {
+        let image = new Image();
+        let cnt = imgCount;
+        let w = 144, h = 144;
+
+        image.onload = function () {
+            imgCache[url] = this;
+            // look at the size of the first image
+            if (url === aUrl[0]) {
+                canvas.width = this.naturalWidth; // or 'width' if you want a special/scaled size
+                canvas.height = this.naturalHeight; // or 'height' if you want a special/scaled size
+            }
+            // if (Object.keys(imgCache).length == aUrl.length) {
+            if (cnt < 1) {
+                if (inFillcolor) {
+                    ctx.fillStyle = inFillcolor;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+                // draw in the proper sequence FIFO
+                aUrl.forEach(e => {
+                    if (!imgCache[e]) {
+                        console.warn(imgCache[e], imgCache);
+                    }
+
+                    if (imgCache[e]) {
+                        ctx.drawImage(imgCache[e], 0, 0);
+                        ctx.save();
+                    }
+                });
+
+                callback(canvas.toDataURL('image/png'));
+                // or to get raw image data
+                // callback && callback(canvas.toDataURL('image/png').replace(/^data:image\/(png|jpg);base64,/, ''));
+            }
+        };
+
+        imgCount--;
+        image.src = url;
+    }
 };
 
 Utils.getData = function (url) {
@@ -434,7 +606,7 @@ Utils.onChange = function (object, callback) {
         },
         set (target, property, value, receiver) {
             console.log('Utils.onChange:set1:', target, property, value, receiver);
-            //target[property] = value;
+            // target[property] = value;
             const b = Reflect.set(target, property, value);
             console.log('Utils.onChange:set2:', target, property, value, receiver);
             return b;
@@ -485,31 +657,8 @@ Utils.observeArray = function (object, callback) {
 
 window['_'] = Utils;
 
-// Create a wrapper to allow passing JSON to the socket
-WebSocket.prototype.sendJSON = function (jsn, log) {
-    if (log) {
-        console.log('SendJSON', this, jsn);
-    }
-    // if (this.readyState) {
-    this.send(JSON.stringify(jsn));
-    // }
-};
-
-function fix_settings (key, vlu) {
-    if (key === 'settings' && typeof vlu === 'string') {
-        console.log(
-            '************************** fix_settings',
-            key,
-            vlu,
-            typeof vlu
-        );
-        return Utils.parseJson(vlu);
-    }
-    return vlu;
-}
-
-/**
- * connectSocket
+/*
+ * connectElgatoStreamDeckSocket
  * This is the first function StreamDeck Software calls, when
  * establishing the connection to the plugin or the Property Inspector
  * @param {string} inPort - The socket's port to communicate with StreamDeck software.
@@ -517,7 +666,22 @@ function fix_settings (key, vlu) {
  * @param {string} inMessageType - Identifies, if the event is meant for the property inspector or the plugin.
  * @param {string} inApplicationInfo - Information about the host (StreamDeck) application
  * @param {string} inActionInfo - Context is an internal identifier used to communicate to the host application.
- **/
+ */
+
+
+// eslint-disable-next-line no-unused-vars
+function connectElgatoStreamDeckSocket (
+    inPort,
+    inUUID,
+    inMessageType,
+    inApplicationInfo,
+    inActionInfo
+) {
+    StreamDeck.getInstance().connect(arguments);
+    window.$SD.api = Object.assign({ send: SDApi.send }, SDApi.common, SDApi[inMessageType]);
+}
+
+/* legacy support */
 
 function connectSocket (
     inPort,
@@ -526,8 +690,13 @@ function connectSocket (
     inApplicationInfo,
     inActionInfo
 ) {
-    console.log('connectSocket......', arguments);
-    StreamDeck.getInstance().connect(arguments);
+    connectElgatoStreamDeckSocket(
+        inPort,
+        inUUID,
+        inMessageType,
+        inApplicationInfo,
+        inActionInfo
+    );
 }
 
 /**
@@ -570,13 +739,19 @@ const StreamDeck = (function () {
             inUUID = args[1];
             inMessageType = args[2];
             inApplicationInfo = Utils.parseJson(args[3]);
-            inActionInfo =
-                args[4] !== 'undefined' ? Utils.parseJson(args[4]) : args[4];
+            inActionInfo = args[4] !== 'undefined' ? Utils.parseJson(args[4]) : args[4];
 
             /** Debug variables */
             if (debug) {
                 showVars();
             }
+
+            const lang = Utils.getProp(inApplicationInfo,'application.language', false);
+            if (lang) {
+                loadLocalization(lang, inMessageType === 'registerPropertyInspector' ? '../' : './', function() {
+                    events.emit('localizationLoaded', {language:lang});
+                });
+            };
 
             /** restrict the API to what's possible
              * within Plugin or Property Inspector
@@ -589,7 +764,7 @@ const StreamDeck = (function () {
                 websocket = null;
             };
 
-            websocket = new WebSocket('ws://localhost:' + inPort);
+            websocket = new WebSocket('ws://127.0.0.1:' + inPort);
 
             websocket.onopen = function () {
                 var json = {
@@ -600,13 +775,18 @@ const StreamDeck = (function () {
                 // console.log('***************', inMessageType + "  websocket:onopen", inUUID, json);
 
                 websocket.sendJSON(json);
+                $SD.uuid = inUUID;
+                $SD.actionInfo = inActionInfo;
+                $SD.applicationInfo = inApplicationInfo;
+                $SD.messageType = inMessageType;
+                $SD.connection = websocket;
 
                 instance.emit('connected', {
                     connection: websocket,
                     port: inPort,
                     uuid: inUUID,
-                    plugin: inActionInfo,
-                    info: inApplicationInfo,
+                    actionInfo: inActionInfo,
+                    applicationInfo: inApplicationInfo,
                     messageType: inMessageType
                 });
             };
@@ -618,22 +798,21 @@ const StreamDeck = (function () {
             websocket.onclose = function (evt) {
                 // Websocket is closed
                 var reason = WEBSOCKETERROR(evt);
-                console.log(
+                console.warn(
                     '[STREAMDECK]***** WEBOCKET CLOSED **** reason:',
                     reason
                 );
-
             };
 
             websocket.onmessage = function (evt) {
-                var jsonObj = Utils.parseJson(evt.data);
-                var m = '';
+                var jsonObj = Utils.parseJson(evt.data),
+                    m;
 
-                 console.log('[STREAMDECK] websocket.onmessage ... ', evt);
+                // console.log('[STREAMDECK] websocket.onmessage ... ', jsonObj.event, jsonObj);
 
                 if (!jsonObj.hasOwnProperty('action')) {
                     m = jsonObj.event;
-                    console.log('%c%s','color: white; background: red; font-size: 12px;', '[common.js]', m);
+                    // console.log('%c%s', 'color: white; background: red; font-size: 12px;', '[common.js]onmessage:', m);
                 } else {
                     switch (inMessageType) {
                     case 'registerPlugin':
@@ -641,11 +820,10 @@ const StreamDeck = (function () {
                         break;
                     case 'registerPropertyInspector':
                         m = 'sendToPropertyInspector';
-
                         break;
                     default:
-                        console.log('+++++++++  PROBLEM ++++++++');
-                        console.log('UNREGISTERED MESSAGETYPE:', inMessageType);
+                        console.log('%c%s', 'color: white; background: red; font-size: 12px;', '[STREAMDECK] websocket.onmessage +++++++++  PROBLEM ++++++++');
+                        console.warn('UNREGISTERED MESSAGETYPE:', inMessageType);
                     }
                 }
 
@@ -673,12 +851,19 @@ const StreamDeck = (function () {
         getInstance: function () {
             if (!instance) {
                 instance = init();
-                // console.log(">>>>>>> INSTANCE", instance);
             }
             return instance;
         }
     };
 })();
+
+// eslint-disable-next-line no-unused-vars
+function initializeControlCenterClient () {
+    const settings = Object.assign(REMOTESETTINGS || {}, { debug: false });
+    var $CC = new ControlCenterClient(settings);
+    window['$CC'] = $CC;
+    return $CC;
+}
 
 /** ELGEvents
  * Publish/Subscribe pattern to quickly signal events to
@@ -755,12 +940,12 @@ const SDApi = {
          * This function is non-mutating and thereby creates a new object containing
          * all keys of the original JSON objects.
          */
-        // console.log("SEND...........", payload)
         const pl = Object.assign({}, { event: fn, context: context }, payload);
 
         /** Check, if we have a connection, and if, send the JSON payload */
         if (debug) {
             console.log('-----SDApi.send-----');
+            console.log('context', context);
             console.log(pl);
             console.log(payload.payload);
             console.log(JSON.stringify(payload.payload));
@@ -786,90 +971,153 @@ const SDApi = {
         }
     },
 
-    // registerPlugin: {
+    registerPlugin: {
 
-    /** Messages send from the plugin */
-    showAlert: function (context) {
-        this.send(context, 'showAlert', {});
-    },
+        /** Messages send from the plugin */
+        showAlert: function (context) {
+            SDApi.send(context, 'showAlert', {});
+        },
 
-    showOk: function (context) {
-        this.send(context, 'showOk', {});
-    },
+        showOk: function (context) {
+            SDApi.send(context, 'showOk', {});
+        },
 
-    setSettings: function (context, payload) {
-        this.send(context, 'setSettings', {
-            payload: payload
-        });
-    },
 
-    setTitle: function (context, title, target) {
-        this.send(context, 'setTitle', {
-            payload: {
-                title: '' + title || '',
-                target: target || DestinationEnum.HARDWARE_AND_SOFTWARE
-            }
-        });
-    },
+        setState: function (context, payload) {
+            SDApi.send(context, 'setState', {
+                payload: {
+                    'state': 1 - Number(payload === 0)
+                }
+            });
+        },
 
-    setImage: function (context, img, target) {
-        this.send(context, 'setImage', {
-            payload: {
-                image: img || '',
-                target: target || DestinationEnum.HARDWARE_AND_SOFTWARE
-            }
-        });
-    },
+        setTitle: function (context, title, target) {
+            SDApi.send(context, 'setTitle', {
+                payload: {
+                    title: '' + title || '',
+                    target: target || DestinationEnum.HARDWARE_AND_SOFTWARE
+                }
+            });
+        },
 
-    sendToPropertyInspector: function (context, payload, action) {
-        this.send(context, 'sendToPropertyInspector', {
-            action: action,
-            payload: payload
-        });
+        setImage: function (context, img, target) {
+            SDApi.send(context, 'setImage', {
+                payload: {
+                    image: img || '',
+                    target: target || DestinationEnum.HARDWARE_AND_SOFTWARE
+                }
+            });
+        },
+
+        sendToPropertyInspector: function (context, payload, action) {
+            SDApi.send(context, 'sendToPropertyInspector', {
+                action: action,
+                payload: payload
+            });
+        },
+
+        showUrl2: function (context, urlToOpen) {
+            SDApi.send(context, 'openUrl', {
+                payload: {
+                    url: urlToOpen
+                }
+            });
+        }
     },
-    // },
 
     /** Messages send from Property Inspector */
 
-    // registerPropertyInspector: {
+    registerPropertyInspector: {
 
-    sendToPlugin: function (piUUID, action, payload) {
-        this.send(
-            piUUID,
-            'sendToPlugin',
-            {
-                action: action,
-                payload: payload || {}
-            },
-            false
-        );
+        sendToPlugin: function (piUUID, action, payload) {
+            SDApi.send(
+                piUUID,
+                'sendToPlugin',
+                {
+                    action: action,
+                    payload: payload || {}
+                },
+                false
+            );
+        }
     },
-    // },
-
-    /** Messages received in the plugin: */
 
     /** COMMON */
 
-    debugPrint: function (context, inString) {
-        // console.log("------------ DEBUGPRINT");
-        // console.log([].slice.apply(arguments).join());
-        // console.log("------------ DEBUGPRINT");
-        this.send(context, 'debugPrint', {
-            payload: [].slice.apply(arguments).join('.') || ''
-        });
-    },
+    common: {
 
-    dbgSend: function (fn, context) {
-        /** lookup if an appropriate function exists */
-        if ($SD.connection && this[fn] && typeof this[fn] === 'function') {
-            /** verify if type of payload is an object/json */
-            const payload = this[fn]();
-            if (typeof payload === 'object') {
-                Object.assign({ event: fn, context: context }, payload);
-                $SD.connection && $SD.connection.sendJSON(payload);
+        getSettings: function (context, payload) {
+            SDApi.send(context, 'getSettings', {});
+        },
+
+        setSettings: function (context, payload) {
+            SDApi.send(context, 'setSettings', {
+                payload: payload
+            });
+        },
+
+        getGlobalSettings: function (context, payload) {
+            SDApi.send(context, 'getGlobalSettings', {});
+        },
+
+        setGlobalSettings: function (context, payload) {
+            SDApi.send(context, 'setGlobalSettings', {
+                payload: payload
+            });
+        },
+
+        logMessage: function () {
+           /**
+            * for logMessage we don't need a context, so we allow both
+            * logMessage(unneededContext, 'message')
+            * and
+            * logMessage('message')
+            */
+
+            let payload = (arguments.length > 1) ? arguments[1] : arguments[0];
+
+            SDApi.send(null, 'logMessage', {
+                payload: {
+                    message: payload
+                }
+            });
+        },
+
+        openUrl: function (context, urlToOpen) {
+            SDApi.send(context, 'openUrl', {
+                payload: {
+                    url: urlToOpen
+                }
+            });
+        },
+
+        test: function () {
+            console.log(this);
+            console.log(SDApi);
+        },
+
+        debugPrint: function (context, inString) {
+            // console.log("------------ DEBUGPRINT");
+            // console.log([].slice.apply(arguments).join());
+            // console.log("------------ DEBUGPRINT");
+            SDApi.send(context, 'debugPrint', {
+                payload: [].slice.apply(arguments).join('.') || ''
+            });
+        },
+
+        dbgSend: function (fn, context) {
+            /** lookup if an appropriate function exists */
+            if ($SD.connection && this[fn] && typeof this[fn] === 'function') {
+                /** verify if type of payload is an object/json */
+                const payload = this[fn]();
+                if (typeof payload === 'object') {
+                    Object.assign({ event: fn, context: context }, payload);
+                    $SD.connection && $SD.connection.sendJSON(payload);
+                }
             }
+            console.log(this, fn, typeof this[fn], this[fn]());
         }
-        console.log(this, fn, typeof this[fn], this[fn]());
+
     }
 };
 
