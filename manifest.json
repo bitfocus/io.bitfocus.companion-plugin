@@ -34,7 +34,7 @@
 	"Icon": "img/pluginIcon",
 	"URL": "https://bitfocus.io/companion/",
 	"PropertyInspectorPath": "propertyinspector/index.html",
-	"Version": "1.1.0",
+	"Version": "2.0.0",
 	"OS": [
 		{
 			"Platform": "mac",

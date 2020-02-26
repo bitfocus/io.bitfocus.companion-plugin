@@ -84,6 +84,7 @@ function connected(jsn) {
     $SD.on('io.bitfocus.companion-plugin.action.willAppear', (jsonObj) => action.onWillAppear(jsonObj));
     $SD.on('io.bitfocus.companion-plugin.action.willDisappear', (jsonObj) => action.onWillDisappear(jsonObj));
     $SD.on('io.bitfocus.companion-plugin.action.keyUp', (jsonObj) => action.onKeyUp(jsonObj));
+    $SD.on('io.bitfocus.companion-plugin.action.keyDown', (jsonObj) => action.onKeyDown(jsonObj));
     $SD.on('io.bitfocus.companion-plugin.action.sendToPlugin', (jsonObj) => action.onSendToPlugin(jsonObj));
     $SD.on('io.bitfocus.companion-plugin.action.didReceiveSettings', (jsonObj) => action.onDidReceiveSettings(jsonObj));
 	$SD.on('io.bitfocus.companion-plugin.action.titleParametersDidChange', (...args) => action.titleParametersDidChange(...args));
@@ -161,7 +162,10 @@ function updateImageForIdx(data) {
 	let page = data.page;
 
 	if (page !== undefined) {
-		console.log("%c got fancy image data", 'border: 1px solid red', idx);
+		console.log("%cImage data for static button", 'border: 1px solid red', page, idx);
+	} else {
+		// Cache all dynamic images
+		imagecache[idx] = data.data;
 	}
 
 	for (var ctx in contextes) {
@@ -170,7 +174,6 @@ function updateImageForIdx(data) {
 				var pos = getIndexFromCoordinate(contextes[ctx].settings.buttonselector);
 				if (pos == idx) {	
 					updateImage(ctx, data.data);
-					imagecache[idx] = data.data;
 				}
 			} else if (page !== undefined) {
 				if (page !== undefined && page == contextes[ctx].settings.pageselector) {
@@ -343,6 +346,7 @@ const action = {
 	},
 
 	onWillDisappear: function (jsn) {
+		let settings = $SD.api.getSettings(jsn.context);
 		if (settings.pageselector && settings.pageselector != 'dynamic') {
 			const page = settings.pageselector;
 
@@ -351,8 +355,28 @@ const action = {
 
 	},
 
+	onKeyDown: function (jsn) {
+		const page = jsn.payload.settings.pageselector;
+		const [x, y] = jsn.payload.settings.buttonselector.split(/:/);
+		const bank = (x - 1) + ((y-1) * 8);
+	
+		if (page === 'dynamic') {
+			companion.apicommand('keydown', { keyIndex: bank });
+		} else {
+			companion.apicommand('keydown', { page, bank });
+		}
+    },
+
     onKeyUp: function (jsn) {
-        //this.doSomeThing(jsn, 'onKeyUp', 'green');
+		const page = jsn.payload.settings.pageselector;
+		const [x, y] = jsn.payload.settings.buttonselector.split(/:/);
+		const bank = (x - 1) + ((y-1) * 8);
+
+		if (page === 'dynamic') {
+			companion.apicommand('keyup', { keyIndex: bank });
+		} else {
+			companion.apicommand('keyup', { page, bank });
+		}
     },
 
     onSendToPlugin: function (jsn) {
@@ -409,11 +433,10 @@ const action = {
 	},
 	
 	titleParametersDidChange: function (jsn) {
-		this.setTitle(jsn.context);
+		this.setTitle(jsn);
 	},
 
     setTitle: function(jsn) {
-		console.log("SetTitle:", jsn);
 		$SD.api.setTitle(jsn.context, '', DestinationEnum.HARDWARE_AND_SOFTWARE);
     },
 
