@@ -5,7 +5,7 @@
 		"Name": "Companion button",
 		"States": [
 			{
-				"Image": "img/companionIcon"
+				"Image": "img/loadingIcon"
 			}
 		],
 		"Tooltip": "Control anything in companion",
@@ -29,7 +29,7 @@
 	"SDKVersion": 2,
 	"Author": "Bitfocus AS",
 	"CodePath": "index.html",
-	"Description": "This lets you control instances in Companion. You need to install Companion 1.3.0 or newer from https://bitfocus.io/companion/ first, to be able to use this plugin.",
+	"Description": "This lets you control instances in Companion. You need to install Companion 2.0 or newer from https://bitfocus.io/companion/ first, to be able to use this plugin.",
 	"Name": "Companion button",
 	"Icon": "img/pluginIcon",
 	"URL": "https://bitfocus.io/companion/",

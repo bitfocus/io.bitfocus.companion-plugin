@@ -346,7 +346,8 @@ const action = {
 	},
 
 	onWillDisappear: function (jsn) {
-		let settings = $SD.api.getSettings(jsn.context);
+		let settings = jsn.payload.settings;
+
 		if (settings.pageselector && settings.pageselector != 'dynamic') {
 			const page = settings.pageselector;
 
