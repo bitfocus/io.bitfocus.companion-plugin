@@ -17,13 +17,19 @@ let contextes = {};
 let listeners = {};
 let imagecache = {};
 let defaultActionName = 'io.bitfocus.companion-plugin.action';
+let errorstate;
 
 $SD.on('connected', (jsonObj) => connected(jsonObj));
 
 function sendConnectionState(ctx) {
 	var payload = {};
 
-	if (!companion.isConnected) {
+	if (errorstate) {
+		payload = {
+			connection: errorstate,
+			class: 'caution'
+		};
+	} else if (!companion.isConnected) {
 		payload = {
 			connection: 'Connecting to locally running Companion... Make sure you have at least Companion version 1.3.0 or newer running on your computer',
 			class: 'caution'
@@ -47,6 +53,13 @@ function connected(jsn) {
 
 	// In the future, let people select external companion
 	companion.setAddress('127.0.0.1');
+
+	companion.on('wrongversion', function () {
+		for (var ctx in contextes) {
+			errorstate = 'You need to install companion 2.0 or newer to use this plugin';
+			sendConnectionState(ctx);
+		}
+	});
 
 	companion.on('connected', function () {
 		console.log("New device with plugin UUID: ", pluginUUID);
@@ -78,6 +91,7 @@ function connected(jsn) {
 
 			sendConnectionState(ctx);
 		}
+		errorstate = undefined;
 	});
 
     /** subscribe to the willAppear and other events */
@@ -213,7 +227,7 @@ function loadImageAsDataUri(url, callback) {
 };
 
 function updateImage(context, data) {
-	console.log("Update image for context ", context);
+	//console.log("Update image for context ", context);
 	if (!companion.isConnected) {
 		loadImageAsDataUri('img/actionNotConnected.png', function (imgUrl) {
 			$SD.api.setImage(context, imgUrl, DestinationEnum.HARDWARE_AND_SOFTWARE);
@@ -231,7 +245,7 @@ function updateImage(context, data) {
 					idx = page + '_' + idx;
 				}
 
-				console.log("SHow image fo idx ", idx);
+				//console.log("SHow image fo idx ", idx);
 				if (imagecache[idx] !== undefined) {
 					data = imagecache[idx];
 				} else {
@@ -298,8 +312,8 @@ const action = {
 				pageselector: 'dynamic'
 			});
 	
-			settings['buttonselector'] = currentButton;
-			settings['pageselector'] = 'dynamic';
+			settings.buttonselector = currentButton;
+			settings.pageselector = 'dynamic';
 		}
 		return settings;
 	},
@@ -324,7 +338,6 @@ const action = {
         */
         let settings = jsn.payload.settings;
 
-		console.log("willAppear settings: ", settings);
 		if (contextes[context] === undefined) {
 			contextes[context] = {};
 		}

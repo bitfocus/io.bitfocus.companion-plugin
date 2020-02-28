@@ -85,12 +85,19 @@ companionConnection.prototype.connect = function() {
 		self.apicommand('version', { version: 2 });
 		self.once('version:result', function (args) {
 			if (args.error) {
-				console.warn('Error connecting: ' + args);
+				console.warn('Error connecting: ', args);
 			}
 			self.remote_version = args.version;
 			console.log('Version result:', args);
 
-			self.emit('connected');
+			if (self.remote_version === 1) {
+				console.log('old version');
+				self.emit('wrongversion');
+				websocket.close();
+			} else {
+				console.log('connected');
+				self.emit('connected');
+			}
 		});
 	};
 
