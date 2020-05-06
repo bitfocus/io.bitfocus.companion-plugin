@@ -42,16 +42,6 @@ companionConnection.prototype.setAddress = function(address) {
 	}
 };
 
-companionConnection.prototype.rgb = function (r,g,b) {
-	var self = this;
-
-	return (
-		((r & 0xff) << 16) |
-		((g & 0xff) << 8) |
-		(b & 0xff)
-	);
-};
-
 companionConnection.prototype.apicommand = function (command, args) {
 	var self = this;
 
@@ -60,17 +50,6 @@ companionConnection.prototype.apicommand = function (command, args) {
 	} else {
 		console.warn("Could not send " + command + " when not connected");
 	}
-};
-
-companionConnection.prototype.getImage = function(config, cb) {
-	var self = this;
-
-	self.apicommand('get_image', { config: config });
-	self.once('get_image:result', function (args) {
-		console.log("Got image response");
-		if (args.buffer && args.buffer.data)
-		cb(args.buffer.data);
-	});
 };
 
 companionConnection.prototype.connect = function() {
@@ -82,6 +61,7 @@ companionConnection.prototype.connect = function() {
 	websocket.onopen = function () {
 
 		self.isConnected = true;
+		self.removeAllListeners('version:result');
 		self.apicommand('version', { version: 2 });
 		self.once('version:result', function (args) {
 			if (args.error) {

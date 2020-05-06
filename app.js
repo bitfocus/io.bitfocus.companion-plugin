@@ -64,6 +64,7 @@ function connected(jsn) {
 	companion.on('connected', function () {
 		console.log("New device with plugin UUID: ", pluginUUID);
 	
+		self.removeAllListeners('new_device:result');
 		companion.apicommand('new_device', pluginUUID);
 		companion.once('new_device:result', function (res) {
 			console.log("New device result:", res);

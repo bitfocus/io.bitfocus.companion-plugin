@@ -53,6 +53,14 @@ EventEmitter.prototype.removeListener = function (event, listener) {
     }
 };
 
+EventEmitter.prototype.removeAllListeners = function (event) {
+    var idx;
+
+    if (typeof this.events[event] === 'object') {
+        this.events[event] = []
+    }
+};
+
 EventEmitter.prototype.emit = function (event) {
     var i, listeners, length, args = [].slice.call(arguments, 1);
 
