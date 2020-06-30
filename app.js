@@ -22,7 +22,7 @@ let errorstate;
 $SD.on('connected', (jsonObj) => connected(jsonObj));
 
 function sendConnectionState(ctx) {
-	var payload = {};
+	let payload = {};
 
 	if (errorstate) {
 		payload = {
@@ -31,7 +31,7 @@ function sendConnectionState(ctx) {
 		};
 	} else if (!companion.isConnected) {
 		payload = {
-			connection: 'Connecting to locally running Companion... Make sure you have at least Companion version 1.3.0 or newer running on your computer',
+			connection: 'Connecting to locally running Companion... Make sure you have at least Companion version 1.3.0 or newer running on your computer.',
 			class: 'caution'
 		};
 	} else {
@@ -46,7 +46,7 @@ function sendConnectionState(ctx) {
 }
 
 function connected(jsn) {
-	console.log("Initial data to know about: ", jsn);
+	console.log('Initial data to know about:', jsn);
 
 	pluginUUID = jsn.uuid;
 	companion = new companionConnection();
@@ -55,29 +55,29 @@ function connected(jsn) {
 	companion.setAddress('127.0.0.1');
 
 	companion.on('wrongversion', function () {
-		for (var ctx in contextes) {
+		for (let ctx in contextes) {
 			errorstate = 'You need to install companion 2.0 or newer to use this plugin';
 			sendConnectionState(ctx);
 		}
 	});
 
 	companion.on('connected', function () {
-		console.log("New device with plugin UUID: ", pluginUUID);
+		console.log('New device with plugin UUID:', pluginUUID);
 	
 		companion.removeAllListeners('new_device:result');
 		companion.apicommand('new_device', pluginUUID);
 		companion.once('new_device:result', function (res) {
-			console.log("New device result:", res);
+			console.log('New device result:', res);
 
-			for (var key in listeners) {
-				let [page, bank] = key.split(/_/);
+			for (let key in listeners) {
+				const [page, bank] = key.split(/_/);
 
-				console.log("%c Initial request_button", 'border: 1px solid red', page, bank);
+				console.log('%c Initial request_button', 'border: 1px solid red', page, bank);
 				companion.apicommand('request_button', { page, bank });
 			}
 		});
 	
-		for (var ctx in contextes) {
+		for (let ctx in contextes) {
 			sendConnectionState(ctx);
 		}
 	});
@@ -87,9 +87,8 @@ function connected(jsn) {
 	});
 
 	companion.on('disconnect', function () {
-		for (var ctx in contextes) {
+		for (let ctx in contextes) {
 			updateImage(ctx);
-
 			sendConnectionState(ctx);
 		}
 		errorstate = undefined;
@@ -120,7 +119,7 @@ function addListener(page, buttonselector, context) {
 		return;
 	}
 
-	console.log("%c Add listener", 'border: 1px solid red');
+	console.log('%c Add listener', 'border: 1px solid red');
 
 	if (listeners[key] === undefined) {
 		listeners[key] = [];
@@ -146,7 +145,7 @@ function removeListener(page, buttonselector, context) {
 		return;
 	}
 
-	console.log("%c Remove listener", 'border: 1px solid red');
+	console.log('%c Remove listener', 'border: 1px solid red');
 
 	if (listeners[key] === undefined) {
 		return;
@@ -173,25 +172,25 @@ function getIndexFromCoordinate(data) {
 }
 
 function updateImageForIdx(data) {
-	let idx = data.keyIndex;
-	let page = data.page;
+	const idx = data.keyIndex;
+	const page = data.page;
 
 	if (page !== undefined) {
-		console.log("%cImage data for static button", 'border: 1px solid red', page, idx);
+		console.log('%cImage data for static button', 'border: 1px solid red', page, idx);
 	} else {
 		// Cache all dynamic images
 		imagecache[idx] = data.data;
 	}
 
-	for (var ctx in contextes) {
+	for (let ctx in contextes) {
 		if (contextes[ctx].settings.buttonselector !== undefined) {
 			if (page === undefined && contextes[ctx].settings.pageselector === 'dynamic') {
-				var pos = getIndexFromCoordinate(contextes[ctx].settings.buttonselector);
-				if (pos == idx) {	
+				const pos = getIndexFromCoordinate(contextes[ctx].settings.buttonselector);
+				if (pos === idx) {	
 					updateImage(ctx, data.data);
 				}
 			} else if (page !== undefined) {
-				if (page !== undefined && page == contextes[ctx].settings.pageselector) {
+				if (page !== undefined && page === contextes[ctx].settings.pageselector) {
 					const [x, y] = contextes[ctx].settings.buttonselector.split(/:/);
 					const pos = (x - 1) + ((y - 1) * 8);
 				
@@ -206,29 +205,29 @@ function updateImageForIdx(data) {
 }
 
 function sendCanvasToSD(context, canvas) {
-	console.log("sendCanvasToSD", context);
-	$SD.api.setImage(context, canvas.toDataURL("image/png"), DestinationEnum.HARDWARE_AND_SOFTWARE);
+	console.log('sendCanvasToSD', context);
+	$SD.api.setImage(context, canvas.toDataURL('image/png'), DestinationEnum.HARDWARE_AND_SOFTWARE);
 }
 
 function loadImageAsDataUri(url, callback) {
-	var image = new Image();
+	const image = new Image();
 
 	image.onload = function () {
-		var canvas = document.createElement("canvas");
+		const canvas = document.createElement('canvas');
 
 		canvas.width = this.naturalWidth;
 		canvas.height = this.naturalHeight;
 
-		var ctx = canvas.getContext("2d");
+		const ctx = canvas.getContext('2d');
 		ctx.drawImage(this, 0, 0);
-		callback(canvas.toDataURL("image/png"));
+		callback(canvas.toDataURL('image/png'));
 	};
 
 	image.src = url;
 };
 
 function updateImage(context, data) {
-	//console.log("Update image for context ", context);
+	// console.log('Update image for context ', context);
 	if (!companion.isConnected) {
 		loadImageAsDataUri('img/actionNotConnected.png', function (imgUrl) {
 			$SD.api.setImage(context, imgUrl, DestinationEnum.HARDWARE_AND_SOFTWARE);
@@ -239,14 +238,14 @@ function updateImage(context, data) {
 				contextes[context] !== undefined &&
 				contextes[context].settings != undefined
 			) {
-				let page = contextes[context].settings.pageselector;
+				const page = contextes[context].settings.pageselector;
 				let idx = getIndexFromCoordinate(contextes[context].settings.buttonselector);
 
 				if (page !== 'dynamic') {
 					idx = page + '_' + idx;
 				}
 
-				//console.log("SHow image fo idx ", idx);
+				// console.log('Show image for idx', idx);
 				if (imagecache[idx] !== undefined) {
 					data = imagecache[idx];
 				} else {
@@ -257,12 +256,12 @@ function updateImage(context, data) {
 			}
 		}
 
-		var canvas = document.createElement("canvas");
+		const canvas = document.createElement('canvas');
 		canvas.width = 72;
 		canvas.height = 72;
-		var imagebuffer = dataToButtonImage(data.data);
+		const imagebuffer = dataToButtonImage(data.data);
 
-		var ctx = canvas.getContext("2d");
+		const ctx = canvas.getContext('2d');
 		ctx.putImageData(imagebuffer, 0, 0);
 
 		sendCanvasToSD(context, canvas);
@@ -271,12 +270,13 @@ function updateImage(context, data) {
 
 
 function dataToButtonImage(data) {
-	var sourceData = new Uint8Array(data);
-	var imageData  = new ImageData(72, 72);
+	const sourceData = new Uint8Array(data);
+	const imageData  = new ImageData(72, 72);
 
-	var si = 0, di = 0;
-	for (var y = 0; y < 72; ++y) {
-		for (var x = 0; x < 72; ++x) {
+	let si = 0;
+	let di = 0;
+	for (let y = 0; y < 72; ++y) {
+		for (let x = 0; x < 72; ++x) {
 			imageData.data[di++] = sourceData[si++];
 			imageData.data[di++] = sourceData[si++];
 			imageData.data[di++] = sourceData[si++];
@@ -288,13 +288,13 @@ function dataToButtonImage(data) {
 }
 
 const action = {
-    settings:{},
+    settings: {},
     onDidReceiveSettings: function(jsn) {
-        let settings = Utils.getProp(jsn, 'payload.settings', {});
-		settings = this.newOrOldSettings(jsn, settings);
+        const jsnSettings = Utils.getProp(jsn, 'payload.settings', {});
+		settings = this.newOrOldSettings(jsn, jsnSettings);
 
-		console.log("Did receive settings", jsn);
-		//contextes[jsn.context].settings = settings;
+		console.log('Did receive settings', jsn);
+		// contextes[jsn.context].settings = settings;
 
         this.setTitle(jsn);
 		updateImage(jsn.context);
@@ -304,9 +304,9 @@ const action = {
 		if (settings === undefined || Object.keys(settings).length === 0) {
 			settings = {};
 	
-			console.log("Converting from old or missing config to new");
+			console.log('Converting from old or missing config to new');
 			const currentButton = (jsn.payload.coordinates.column + 1) + ':' + (jsn.payload.coordinates.row + 1);
-			console.log("Setting button to ", currentButton);
+			console.log('Setting button to ', currentButton);
 	
 			this.saveSettings(jsn, {
 				buttonselector: currentButton,
@@ -329,7 +329,7 @@ const action = {
     onWillAppear: function (jsn) {
 		const context = jsn.context;
         /**
-         * "The willAppear event carries your saved settings (if any). You can use these settings
+         * The willAppear event carries your saved settings (if any). You can use these settings
          * to setup your plugin or save the settings for later use. 
          * If you want to request settings at a later time, you can do so using the
          * 'getSettings' event, which will tell Stream Deck to send your data 
@@ -337,13 +337,13 @@ const action = {
          * 
          * $SD.api.getSettings(jsn.context);
         */
-        let settings = jsn.payload.settings;
+        const jsnSettings = jsn.payload.settings;
 
 		if (contextes[context] === undefined) {
 			contextes[context] = {};
 		}
 
-		settings = this.newOrOldSettings(jsn, settings);
+		const settings = this.newOrOldSettings(jsn, jsnSettings);
 
 		contextes[context].settings = settings;
 
@@ -355,16 +355,15 @@ const action = {
 			addListener(page, settings.buttonselector, jsn.context);
 		}
 
-		// Show "disconnected icon if not connected"
+		// Show "disconnected" icon if not connected
 		updateImage(context);
 	},
 
 	onWillDisappear: function (jsn) {
-		let settings = jsn.payload.settings;
+		const settings = jsn.payload.settings;
 
-		if (settings.pageselector && settings.pageselector != 'dynamic') {
+		if (settings.pageselector && settings.pageselector !== 'dynamic') {
 			const page = settings.pageselector;
-
 			removeListener(page, settings.buttonselector, jsn.context);
 		}
 
@@ -416,11 +415,11 @@ const action = {
 				}
 			}
 			updateImage(jsn.context);
-			//this.doSomeThing({ [sdpi_collection.key] : sdpi_collection.value }, 'onSendToPlugin', 'fuchsia');
+			// this.doSomeThing({ [sdpi_collection.key] : sdpi_collection.value }, 'onSendToPlugin', 'fuchsia');
         }
-		console.log("FROM PLUGIN", jsn);
+		console.log('FROM PLUGIN', jsn);
 
-		if (jsn.payload.command == 'get_connection') {
+		if (jsn.payload.command === 'get_connection') {
 			sendConnectionState(context);
 		}
 		
