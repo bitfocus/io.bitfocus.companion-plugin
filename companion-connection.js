@@ -15,101 +15,99 @@
  *
  */
 function companionConnection(address) {
-	var self = this;
-	self.events = {};
+  var self = this;
+  self.events = {};
 
-	self.address = address;
-	self.isConnected = false;
+  self.address = address;
+  self.isConnected = false;
 
-	self.timer = setInterval(function () {
-		if (self.websocket === undefined || !self.isConnected) {
-			console.log("Not connected?");
-			self.connect();
-		}
-	}, 5000);
+  self.timer = setInterval(function () {
+    if (self.websocket === undefined || !self.isConnected) {
+      console.log("Not connected?");
+      self.connect();
+    }
+  }, 5000);
 }
 InjectEventEmitter(companionConnection);
 //companionConnection.prototype = new EventEmitter();
 
-companionConnection.prototype.setAddress = function(address) {
-	var self = this;
-	console.log("cc: setAddress", address);
+companionConnection.prototype.setAddress = function (address) {
+  var self = this;
+  console.log("cc: setAddress", address);
 
-	self.address = address;
+  self.address = address;
 
-	if (self.isConnected) {
-		self.connect();
-	}
+  if (self.isConnected) {
+    self.connect();
+  }
 };
 
 companionConnection.prototype.apicommand = function (command, args) {
-	var self = this;
+  var self = this;
 
-	if (self.websocket.readyState == 1) {
-		self.websocket.send(JSON.stringify({ command: command, arguments: args }));
-	} else {
-		console.warn("Could not send " + command + " when not connected");
-	}
+  if (self.websocket.readyState == 1) {
+    self.websocket.send(JSON.stringify({ command: command, arguments: args }));
+  } else {
+    console.warn("Could not send " + command + " when not connected");
+  }
 };
 
-companionConnection.prototype.connect = function() {
-	var self = this;
+companionConnection.prototype.connect = function () {
+  var self = this;
 
-	console.log("cc: connect");
-	var websocket = self.websocket = new WebSocket('ws://' + self.address + ':28492');
+  console.log("cc: connect");
+  var websocket = (self.websocket = new WebSocket(
+    "ws://" + self.address + ":28492"
+  ));
 
-	websocket.onopen = function () {
+  websocket.onopen = function () {
+    self.isConnected = true;
+    self.removeAllListeners("version:result");
+    self.apicommand("version", { version: 2 });
+    self.once("version:result", function (args) {
+      if (args.error) {
+        console.warn("Error connecting: ", args);
+      }
+      self.remote_version = args.version;
+      console.log("Version result:", args);
 
-		self.isConnected = true;
-		self.removeAllListeners('version:result');
-		self.apicommand('version', { version: 2 });
-		self.once('version:result', function (args) {
-			if (args.error) {
-				console.warn('Error connecting: ', args);
-			}
-			self.remote_version = args.version;
-			console.log('Version result:', args);
+      if (self.remote_version === 1) {
+        console.log("old version");
+        self.emit("wrongversion");
+        websocket.close();
+      } else {
+        console.log("connected");
+        self.emit("connected");
+      }
+    });
+  };
 
-			if (self.remote_version === 1) {
-				console.log('old version');
-				self.emit('wrongversion');
-				websocket.close();
-			} else {
-				console.log('connected');
-				self.emit('connected');
-			}
-		});
-	};
+  websocket.onerror = function (evt) {
+    console.warn("WEBOCKET ERROR", evt, evt.data);
+  };
 
-	websocket.onerror = function (evt) {
-		console.warn('WEBOCKET ERROR', evt, evt.data);
-	};
+  websocket.onclose = function (evt) {
+    // Websocket is closed
+    console.log("[COMPANION]***** WEBOCKET CLOSED **** reason:", evt.code);
 
-	websocket.onclose = function (evt) {
-		// Websocket is closed
-		console.log(
-			'[COMPANION]***** WEBOCKET CLOSED **** reason:',
-			evt.code
-		);
+    self.isConnected = false;
+    self.emit("disconnect");
+  };
 
-		self.isConnected = false;
-		self.emit('disconnect');
-	};
-
-	websocket.onmessage = function (evt) {
-		if (evt.data) {
-			try {
-				var data = JSON.parse(evt.data);
-				if (data.response !== undefined) {
-					self.emit(data.response + ':result', data.arguments);
-					console.log("Emitting response: " + data.response);
-				} else {
-					self.emit(data.command, data.arguments);
-				}
-			} catch (e) {
-				console.warn('Cannot parse wsapi packet:', evt.data, e);
-			}
-		}
-		//console.log("Got message: ", evt);
-	};
+  websocket.onmessage = function (evt) {
+    if (evt.data) {
+      try {
+        var data = JSON.parse(evt.data);
+        if (data.response !== undefined) {
+          self.emit(data.response + ":result", data.arguments);
+          console.log("Emitting response: " + data.response);
+        } else {
+          self.emit(data.command, data.arguments);
+        }
+      } catch (e) {
+        console.warn("Cannot parse wsapi packet:", evt.data, e);
+      }
+    }
+    //console.log("Got message: ", evt);
+  };
 };
