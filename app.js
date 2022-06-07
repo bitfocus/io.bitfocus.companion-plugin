@@ -25,7 +25,7 @@ function sendConnectionState(actionItemId) {
   } else if (!companionClient.isConnected) {
     payload = {
       connection:
-        "Connecting to locally running Companion... Make sure you have at least Companion version 1.3.0 or newer running on your computer",
+        "Connecting to locally running Companion... Make sure you have at least Companion version 2.2.0 or newer and that you have enabled support for the Elgato Plugin",
       class: "caution",
     };
   } else {
@@ -110,12 +110,12 @@ $SD.on("connected", (jsn) => {
 
     companionClient.on("fillImage", (data) => {
       console.log("fillImage", data);
-      updateImageForIdx(data);
+      receivedNewImage(data);
     });
 
     companionClient.on("disconnect", () => {
       for (let actionItemId in actionItems) {
-        updateImageForActionItem(actionItemId);
+        redrawCachedImageForActionItem(actionItemId);
 
         sendConnectionState(actionItemId);
       }
@@ -209,12 +209,12 @@ function removeKeyImageListener(page, buttonselector, actionItemId) {
     return;
   }
 
-  listeners.remove(actionItemId);
+  listeners.delete(actionItemId);
 
   if (listeners.size === 0) {
     companionClient.apicommand("unrequest_button", { page, bank });
     keyImageListeners.delete(key);
-    delete imagecache[page + "_" + bank];
+    delete imagecache[key];
   }
 }
 
@@ -224,108 +224,101 @@ function getKeyIndexFromCoordinate(buttonselector) {
   return parseInt(coordinates[0]) - 1 + (parseInt(coordinates[1]) - 1) * 8;
 }
 
-function updateImageForIdx(data) {
-  let idx = data.keyIndex;
-  let page = data.page;
+function receivedNewImage(data) {
+  const keyIndex = data.keyIndex;
+  const page = data.page;
 
-  if (page !== undefined) {
+  const imageUrl = dataToImageUrl(data.data.data);
+
+  if (page) {
     console.log(
       "%cImage data for static button",
       "border: 1px solid red",
       page,
-      idx
+      keyIndex
     );
+
+    for (const [actionItemId, actionItem] of Object.entries(actionItems)) {
+      if (
+        actionItem.settings.buttonselector &&
+        page == actionItem.settings.pageselector
+      ) {
+        const pos = getKeyIndexFromCoordinate(
+          actionItem.settings.buttonselector
+        );
+
+        if (pos == keyIndex) {
+          imagecache[page + "_" + keyIndex] = imageUrl;
+
+          console.log("sendCanvasToSD", actionItemId);
+          $SD.api.setImage(
+            actionItemId,
+            imageUrl,
+            DestinationEnum.HARDWARE_AND_SOFTWARE
+          );
+        }
+      }
+    }
   } else {
     // Cache all dynamic images
-    imagecache[idx] = data.data;
-  }
+    imagecache[keyIndex] = imageUrl;
 
-  for (var ctx in actionItems) {
-    if (actionItems[ctx].settings.buttonselector !== undefined) {
+    for (const [actionItemId, actionItem] of Object.entries(actionItems)) {
       if (
-        page === undefined &&
-        actionItems[ctx].settings.pageselector === "dynamic"
+        actionItem.settings.buttonselector &&
+        (actionItem.settings.pageselector === "dynamic" ||
+          !actionItem.settings.pageselector)
       ) {
-        var pos = getKeyIndexFromCoordinate(
-          actionItems[ctx].settings.buttonselector
+        const pos = getKeyIndexFromCoordinate(
+          actionItem.settings.buttonselector
         );
-        if (pos == idx) {
-          updateImageForActionItem(ctx, data.data);
-        }
-      } else if (page !== undefined) {
-        if (
-          page !== undefined &&
-          page == actionItems[ctx].settings.pageselector
-        ) {
-          const [x, y] = actionItems[ctx].settings.buttonselector.split(/:/);
-          const pos = x - 1 + (y - 1) * 8;
-
-          if (parseInt(pos) === parseInt(idx)) {
-            imagecache[page + "_" + idx] = data.data;
-            updateImageForActionItem(ctx, data.data);
-          }
+        if (pos == keyIndex) {
+          console.log("sendCanvasToSD", actionItemId);
+          $SD.api.setImage(
+            actionItemId,
+            imageUrl,
+            DestinationEnum.HARDWARE_AND_SOFTWARE
+          );
         }
       }
     }
   }
 }
 
-function sendCanvasToSD(context, canvas) {
-  console.log("sendCanvasToSD", context);
-  $SD.api.setImage(
-    context,
-    canvas.toDataURL("image/png"),
-    DestinationEnum.HARDWARE_AND_SOFTWARE
-  );
-}
-
-function updateImageForActionItem(context, data) {
+function redrawCachedImageForActionItem(actionItemId) {
   //console.log("Update image for context ", context);
   if (!companionClient.isConnected) {
     $SD.api.setImage(
-      context,
+      actionItemId,
       notConnectedImage,
       DestinationEnum.HARDWARE_AND_SOFTWARE
     );
   } else {
-    if (data === undefined) {
-      if (
-        actionItems[context] !== undefined &&
-        actionItems[context].settings != undefined
-      ) {
-        let page = actionItems[context].settings.pageselector;
-        let idx = getKeyIndexFromCoordinate(
-          actionItems[context].settings.buttonselector
+    if (actionItems[actionItemId] && actionItems[actionItemId].settings) {
+      const page = actionItems[actionItemId].settings.pageselector;
+      let idx = getKeyIndexFromCoordinate(
+        actionItems[actionItemId].settings.buttonselector
+      );
+
+      if (page && page !== "dynamic") {
+        idx = page + "_" + idx;
+      }
+
+      //console.log("SHow image fo idx ", idx);
+      const imageUrl = imagecache[idx];
+      if (imageUrl) {
+        console.log("sendCanvasToSD", actionItemId);
+        $SD.api.setImage(
+          actionItemId,
+          imageUrl,
+          DestinationEnum.HARDWARE_AND_SOFTWARE
         );
-
-        if (page !== "dynamic") {
-          idx = page + "_" + idx;
-        }
-
-        //console.log("SHow image fo idx ", idx);
-        if (imagecache[idx] !== undefined) {
-          data = imagecache[idx];
-        } else {
-          return;
-        }
-      } else {
-        return;
       }
     }
-
-    var canvas = document.createElement("canvas");
-    canvas.width = 72;
-    canvas.height = 72;
-    var imagebuffer = dataToButtonImage(data.data);
-
-    var ctx = canvas.getContext("2d");
-    ctx.putImageData(imagebuffer, 0, 0);
-
-    sendCanvasToSD(context, canvas);
   }
 }
 
-function dataToButtonImage(data) {
+function dataToImageUrl(data) {
   var sourceData = new Uint8Array(data);
   var imageData = new ImageData(72, 72);
 
@@ -340,32 +333,41 @@ function dataToButtonImage(data) {
     }
   }
 
-  return imageData;
+  var canvas = document.createElement("canvas");
+  canvas.width = 72;
+  canvas.height = 72;
+
+  var ctx = canvas.getContext("2d");
+  ctx.putImageData(imageData, 0, 0);
+
+  return canvas.toDataURL("image/png");
 }
 
 const action = {
   settings: {},
   onDidReceiveSettings: function (jsn) {
     let settings = Utils.getProp(jsn, "payload.settings", {});
-    settings = this.newOrOldSettings(jsn, settings);
+    settings = this.receivedActionItem(jsn, settings);
 
     console.log("Did receive settings", jsn);
     //contextes[jsn.context].settings = settings;
 
     this.setTitle(jsn);
-    updateImageForActionItem(jsn.context);
+    redrawCachedImageForActionItem(jsn.context);
   },
 
-  newOrOldSettings(jsn, settings) {
-    if (settings === undefined || Object.keys(settings).length === 0) {
-      settings = {};
+  receivedActionItem(jsn, newSettings) {
+    if (newSettings === undefined || Object.keys(newSettings).length === 0) {
+      newSettings = {};
 
       console.log("Converting from old or missing config to new");
-      const currentButton =
+      let currentButton = "1:1";
+      if (jsn.payload.coordinates) {
         jsn.payload.coordinates.column +
-        1 +
-        ":" +
-        (jsn.payload.coordinates.row + 1);
+          1 +
+          ":" +
+          (jsn.payload.coordinates.row + 1);
+      }
       console.log("Setting button to ", currentButton);
 
       this.saveSettings(jsn, {
@@ -373,10 +375,10 @@ const action = {
         pageselector: "dynamic",
       });
 
-      settings.buttonselector = currentButton;
-      settings.pageselector = "dynamic";
+      newSettings.buttonselector = currentButton;
+      newSettings.pageselector = "dynamic";
     }
-    return settings;
+    return newSettings;
   },
 
   /**
@@ -404,7 +406,7 @@ const action = {
       actionItems[context] = {};
     }
 
-    settings = this.newOrOldSettings(jsn, settings);
+    settings = this.receivedActionItem(jsn, settings);
 
     actionItems[context].settings = settings;
 
@@ -417,7 +419,7 @@ const action = {
     }
 
     // Show "disconnected icon if not connected"
-    updateImageForActionItem(context);
+    redrawCachedImageForActionItem(context);
   },
 
   onWillDisappear: function (jsn) {
@@ -464,15 +466,15 @@ const action = {
      */
 
     const sdpi_collection = Utils.getProp(jsn, "payload.sdpi_collection", {});
-    if (sdpi_collection.value && sdpi_collection.value !== undefined) {
+    if (sdpi_collection.value) {
       if (
-        actionItems[context].settings !== undefined &&
+        actionItems[context].settings &&
         actionItems[context].settings[sdpi_collection.key] !=
           sdpi_collection.value
       ) {
         if (
-          actionItems[context].settings.pageselector !== undefined &&
-          actionItems[context].settings.buttonselector !== undefined
+          actionItems[context].settings.pageselector &&
+          actionItems[context].settings.buttonselector
         ) {
           removeKeyImageListener(
             actionItems[context].settings.pageselector,
@@ -485,8 +487,8 @@ const action = {
           sdpi_collection.value;
 
         if (
-          actionItems[context].settings.pageselector !== undefined &&
-          actionItems[context].settings.buttonselector !== undefined
+          actionItems[context].settings.pageselector &&
+          actionItems[context].settings.buttonselector
         ) {
           addKeyImageListener(
             actionItems[context].settings.pageselector,
@@ -495,7 +497,7 @@ const action = {
           );
         }
       }
-      updateImageForActionItem(jsn.context);
+      redrawCachedImageForActionItem(jsn.context);
       //this.doSomeThing({ [sdpi_collection.key] : sdpi_collection.value }, 'onSendToPlugin', 'fuchsia');
     }
     console.log("FROM PLUGIN", jsn);
@@ -527,7 +529,7 @@ const action = {
       defaultActionName
     );
 
-    updateImageForActionItem(jsn.context);
+    redrawCachedImageForActionItem(jsn.context);
   },
 
   titleParametersDidChange: function (jsn) {

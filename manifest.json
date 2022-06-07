@@ -1,53 +1,53 @@
 {
-	"Actions": [
-	{
-		"Icon": "img/actionIcon",
-		"Name": "Companion button",
-		"States": [
-			{
-				"Image": "img/loadingIcon"
-			}
-		],
-		"Tooltip": "Control anything in companion",
-		"UUID": "io.bitfocus.companion-plugin.action",
-		"SupportedInMultiActions": true
-	}
-	],
-	"Profiles": [
-		{
-			"Name": "companion.streamDeckProfile",
-			"DeviceType": 0
-		},
-		{
-			"Name": "companionMini.streamDeckProfile",
-			"DeviceType": 1
-		},
-		{
-			"Name": "companionXL.streamDeckProfile",
-			"DeviceType": 2
-		}
-	],
-	"SDKVersion": 2,
-	"Author": "Bitfocus AS",
-	"CodePath": "index.html",
-	"Description": "This lets you control instances in Companion. You need to install Companion 2.0 or newer from https://bitfocus.io/companion/ first, to be able to use this plugin.",
-	"Name": "Companion button",
-	"Icon": "img/pluginIcon",
-	"URL": "https://bitfocus.io/companion/",
-	"PropertyInspectorPath": "propertyinspector/index.html",
-	"Version": "2.1.0",
-	"OS": [
-		{
-			"Platform": "mac",
-			"MinimumVersion" : "10.11"
-		},
-		{
-			"Platform": "windows",
-			"MinimumVersion" : "10"
-		}
-	],
-	"Software":
-	{
-		"MinimumVersion" : "4.1"
-	}
+  "Actions": [
+    {
+      "Icon": "img/actionIcon",
+      "Name": "Companion button",
+      "States": [
+        {
+          "Image": "img/loadingIcon"
+        }
+      ],
+      "Tooltip": "Control anything in companion",
+      "UUID": "io.bitfocus.companion-plugin.action",
+      "SupportedInMultiActions": true
+    }
+  ],
+  "Profiles": [
+    {
+      "Name": "companion.streamDeckProfile",
+      "DeviceType": 0
+    },
+    {
+      "Name": "companionMini.streamDeckProfile",
+      "DeviceType": 1
+    },
+    {
+      "Name": "companionXL.streamDeckProfile",
+      "DeviceType": 2
+    }
+  ],
+  "SDKVersion": 2,
+  "Author": "Bitfocus AS",
+  "Category": "Companion",
+  "CodePath": "index.html",
+  "Description": "This lets you control instances in Companion. You need to install Companion 2.0 or newer from https://bitfocus.io/companion/ first, to be able to use this plugin.",
+  "Name": "Companion button",
+  "Icon": "img/pluginIcon",
+  "URL": "https://bitfocus.io/companion/",
+  "PropertyInspectorPath": "propertyinspector/index.html",
+  "Version": "2.1.0",
+  "OS": [
+    {
+      "Platform": "mac",
+      "MinimumVersion": "10.11"
+    },
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Software": {
+    "MinimumVersion": "4.1"
+  }
 }
