@@ -1,82 +1,41 @@
-var indexOf;
-
-if (typeof Array.prototype.indexOf === 'function') {
-    indexOf = function (haystack, needle) {
-        return haystack.indexOf(needle);
-    };
-} else {
-    indexOf = function (haystack, needle) {
-        var i = 0, length = haystack.length, idx = -1, found = false;
-
-        while (i < length && !found) {
-            if (haystack[i] === needle) {
-                idx = i;
-                found = true;
-            }
-
-            i++;
-        }
-
-        return idx;
-    };
-};
-
-var EventEmitter = function () {
+class EventEmitter {
+  constructor() {
     this.events = {};
-};
-
-var InjectEventEmitter = function (obj) {
-	obj.events = {};
-
-	for (var key in EventEmitter.prototype) {
-		obj.prototype[key] = EventEmitter.prototype[key];
-	}
-}
-
-EventEmitter.prototype.on = function (event, listener) {
-    if (typeof this.events[event] !== 'object') {
-        this.events[event] = [];
+  }
+  on(event, listener) {
+    if (!this.events[event]) {
+      this.events[event] = [];
     }
 
     this.events[event].push(listener);
-};
+  }
+  removeListener(event, listener) {
+    if (this.events[event]) {
+      const idx = this.events[event].indexOf(listener);
 
-EventEmitter.prototype.removeListener = function (event, listener) {
-    var idx;
-
-    if (typeof this.events[event] === 'object') {
-        idx = indexOf(this.events[event], listener);
-
-        if (idx > -1) {
-            this.events[event].splice(idx, 1);
-        }
+      if (idx > -1) {
+        this.events[event].splice(idx, 1);
+      }
     }
-};
-
-EventEmitter.prototype.removeAllListeners = function (event) {
-    var idx;
-
-    if (typeof this.events[event] === 'object') {
-        this.events[event] = []
+  }
+  removeAllListeners(event) {
+    if (this.events[event]) {
+      this.events[event] = [];
     }
-};
-
-EventEmitter.prototype.emit = function (event) {
-    var i, listeners, length, args = [].slice.call(arguments, 1);
-
-    if (typeof this.events[event] === 'object') {
-        listeners = this.events[event].slice();
-        length = listeners.length;
-
-        for (i = 0; i < length; i++) {
-            listeners[i].apply(this, args);
-        }
+  }
+  emit(event, ...args) {
+    if (this.events[event]) {
+      const listeners = this.events[event].slice();
+      for (const listener of listeners) {
+        listener.apply(this, args);
+      }
     }
-};
-
-EventEmitter.prototype.once = function (event, listener) {
-    this.on(event, function g () {
-        this.removeListener(event, g);
-        listener.apply(this, arguments);
-    });
-};
+  }
+  once(event, listener) {
+    const tmp = (...args) => {
+      this.removeListener(event, tmp);
+      listener.apply(this, args);
+    };
+    this.on(event, tmp);
+  }
+}

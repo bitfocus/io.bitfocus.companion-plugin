@@ -16,7 +16,7 @@ let pluginUUID = null;
 let contextes = {};
 let listeners = {};
 let imagecache = {};
-let defaultActionName = "io.bitfocus.companion-plugin.action";
+const defaultActionName = "io.bitfocus.companion-plugin.action";
 let errorstate;
 
 $SD.on("connected", (jsonObj) => connected(jsonObj));
@@ -50,7 +50,7 @@ function connected(jsn) {
   console.log("Initial data to know about: ", jsn);
 
   pluginUUID = jsn.uuid;
-  companion = new companionConnection();
+  companion = new CompanionConnection();
 
   // In the future, let people select external companion
   companion.setAddress("10.42.13.197");
