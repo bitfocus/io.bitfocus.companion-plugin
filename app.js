@@ -5,31 +5,24 @@
  * your plugin and subscribe to events sent by Stream Deck to your plugin.
  */
 
-/**
- * The 'connected' event is sent to your plugin, after the plugin's instance
- * is registered with Stream Deck software. It carries the current websocket
- * and other information about the current environmet in a JSON object
- * You can use it to subscribe to events you want to use in your plugin.
- */
-let companion;
+let companionClient;
 let pluginUUID = null;
-let contextes = {};
-let listeners = {};
-let imagecache = {};
+const actionItems = {};
+const keyImageListeners = new Map();
+const imagecache = {};
 const defaultActionName = "io.bitfocus.companion-plugin.action";
 let errorstate;
+let notConnectedImage;
 
-$SD.on("connected", (jsonObj) => connected(jsonObj));
-
-function sendConnectionState(ctx) {
-  var payload = {};
+function sendConnectionState(actionItemId) {
+  let payload = {};
 
   if (errorstate) {
     payload = {
       connection: errorstate,
       class: "caution",
     };
-  } else if (!companion.isConnected) {
+  } else if (!companionClient.isConnected) {
     payload = {
       connection:
         "Connecting to locally running Companion... Make sure you have at least Companion version 1.3.0 or newer running on your computer",
@@ -39,172 +32,195 @@ function sendConnectionState(ctx) {
     payload = {
       connection: "Connected",
       class: "info",
-      version: companion.remote_version,
+      version: companionClient.remote_version,
     };
   }
 
-  $SD.api.sendToPropertyInspector(ctx, payload, defaultActionName);
+  $SD.api.sendToPropertyInspector(actionItemId, payload, defaultActionName);
 }
 
-function connected(jsn) {
+function loadImageAsDataUri(url, callback) {
+  const image = new Image();
+
+  image.onload = function () {
+    var canvas = document.createElement("canvas");
+
+    canvas.width = this.naturalWidth;
+    canvas.height = this.naturalHeight;
+
+    var ctx = canvas.getContext("2d");
+    ctx.drawImage(this, 0, 0);
+    callback(canvas.toDataURL("image/png"));
+  };
+
+  image.src = url;
+}
+
+/**
+ * The 'connected' event is sent to your plugin, after the plugin's instance
+ * is registered with Stream Deck software. It carries the current websocket
+ * and other information about the current environmet in a JSON object
+ * You can use it to subscribe to events you want to use in your plugin.
+ */
+$SD.on("connected", (jsn) => {
   console.log("Initial data to know about: ", jsn);
 
-  pluginUUID = jsn.uuid;
-  companion = new CompanionConnection();
+  loadImageAsDataUri("img/actionNotConnected.png", (imgUrl) => {
+    notConnectedImage = imgUrl;
 
-  // In the future, let people select external companion
-  companion.setAddress("10.42.13.197");
+    pluginUUID = jsn.uuid;
+    companionClient = new CompanionConnection();
 
-  companion.on("wrongversion", function () {
-    for (var ctx in contextes) {
-      errorstate =
-        "You need to install companion 2.0 or newer to use this plugin";
-      sendConnectionState(ctx);
-    }
-  });
+    // In the future, let people select external companion
+    companionClient.setAddress("10.42.13.197");
 
-  companion.on("connected", function () {
-    console.log("New device with plugin UUID: ", pluginUUID);
-
-    companion.removeAllListeners("new_device:result");
-    companion.apicommand("new_device", pluginUUID);
-    companion.once("new_device:result", function (res) {
-      console.log("New device result:", res);
-
-      for (var key in listeners) {
-        let [page, bank] = key.split(/_/);
-
-        console.log(
-          "%c Initial request_button",
-          "border: 1px solid red",
-          page,
-          bank
-        );
-        companion.apicommand("request_button", { page, bank });
+    companionClient.on("wrongversion", () => {
+      for (let ctx in actionItems) {
+        errorstate =
+          "You need to install companion 2.0 or newer to use this plugin";
+        sendConnectionState(ctx);
       }
     });
 
-    for (var ctx in contextes) {
-      sendConnectionState(ctx);
-    }
+    companionClient.on("connected", () => {
+      console.log("New device with plugin UUID: ", pluginUUID);
+
+      companionClient.removeAllListeners("new_device:result");
+      companionClient.apicommand("new_device", pluginUUID);
+      companionClient.once("new_device:result", (res) => {
+        console.log("New device result:", res);
+
+        for (const key of keyImageListeners.keys()) {
+          let [page, bank] = key.split(/_/);
+
+          console.log(
+            "%c Initial request_button",
+            "border: 1px solid red",
+            page,
+            bank
+          );
+          companionClient.apicommand("request_button", { page, bank });
+        }
+      });
+
+      for (let actionItemId in actionItems) {
+        sendConnectionState(actionItemId);
+      }
+    });
+
+    companionClient.on("fillImage", (data) => {
+      console.log("fillImage", data);
+      updateImageForIdx(data);
+    });
+
+    companionClient.on("disconnect", () => {
+      for (let actionItemId in actionItems) {
+        updateImageForActionItem(actionItemId);
+
+        sendConnectionState(actionItemId);
+      }
+      errorstate = undefined;
+    });
   });
+});
 
-  companion.on("fillImage", function (data) {
-    updateImageForIdx(data);
-  });
+/** subscribe to the willAppear and other events */
+$SD.on("io.bitfocus.companion-plugin.action.willAppear", (jsonObj) =>
+  action.onWillAppear(jsonObj)
+);
+$SD.on("io.bitfocus.companion-plugin.action.willDisappear", (jsonObj) =>
+  action.onWillDisappear(jsonObj)
+);
+$SD.on("io.bitfocus.companion-plugin.action.keyUp", (jsonObj) =>
+  action.onKeyUp(jsonObj)
+);
+$SD.on("io.bitfocus.companion-plugin.action.keyDown", (jsonObj) =>
+  action.onKeyDown(jsonObj)
+);
+$SD.on("io.bitfocus.companion-plugin.action.sendToPlugin", (jsonObj) =>
+  action.onSendToPlugin(jsonObj)
+);
+$SD.on("io.bitfocus.companion-plugin.action.didReceiveSettings", (jsonObj) =>
+  action.onDidReceiveSettings(jsonObj)
+);
+$SD.on(
+  "io.bitfocus.companion-plugin.action.titleParametersDidChange",
+  (...args) => action.titleParametersDidChange(...args)
+);
+$SD.on(
+  "io.bitfocus.companion-plugin.action.propertyInspectorDidAppear",
+  (jsonObj) => {
+    console.log(
+      "%c%s",
+      "color: white; background: black; font-size: 13px;",
+      "[app.js]propertyInspectorDidAppear:"
+    );
+  }
+);
+$SD.on(
+  "io.bitfocus.companion-plugin.action.propertyInspectorDidDisappear",
+  (jsonObj) => {
+    console.log(
+      "%c%s",
+      "color: white; background: red; font-size: 13px;",
+      "[app.js]propertyInspectorDidDisappear:"
+    );
+  }
+);
 
-  companion.on("disconnect", function () {
-    for (var ctx in contextes) {
-      updateImage(ctx);
-
-      sendConnectionState(ctx);
-    }
-    errorstate = undefined;
-  });
-
-  /** subscribe to the willAppear and other events */
-  $SD.on("io.bitfocus.companion-plugin.action.willAppear", (jsonObj) =>
-    action.onWillAppear(jsonObj)
-  );
-  $SD.on("io.bitfocus.companion-plugin.action.willDisappear", (jsonObj) =>
-    action.onWillDisappear(jsonObj)
-  );
-  $SD.on("io.bitfocus.companion-plugin.action.keyUp", (jsonObj) =>
-    action.onKeyUp(jsonObj)
-  );
-  $SD.on("io.bitfocus.companion-plugin.action.keyDown", (jsonObj) =>
-    action.onKeyDown(jsonObj)
-  );
-  $SD.on("io.bitfocus.companion-plugin.action.sendToPlugin", (jsonObj) =>
-    action.onSendToPlugin(jsonObj)
-  );
-  $SD.on("io.bitfocus.companion-plugin.action.didReceiveSettings", (jsonObj) =>
-    action.onDidReceiveSettings(jsonObj)
-  );
-  $SD.on(
-    "io.bitfocus.companion-plugin.action.titleParametersDidChange",
-    (...args) => action.titleParametersDidChange(...args)
-  );
-  $SD.on(
-    "io.bitfocus.companion-plugin.action.propertyInspectorDidAppear",
-    (jsonObj) => {
-      console.log(
-        "%c%s",
-        "color: white; background: black; font-size: 13px;",
-        "[app.js]propertyInspectorDidAppear:"
-      );
-    }
-  );
-  $SD.on(
-    "io.bitfocus.companion-plugin.action.propertyInspectorDidDisappear",
-    (jsonObj) => {
-      console.log(
-        "%c%s",
-        "color: white; background: red; font-size: 13px;",
-        "[app.js]propertyInspectorDidDisappear:"
-      );
-    }
-  );
-}
-
-function addListener(page, buttonselector, context) {
-  const [x, y] = buttonselector.split(/:/);
-  const bank = x - 1 + (y - 1) * 8;
-  const key = page + "_" + bank;
-
+function addKeyImageListener(page, buttonselector, actionItemId) {
   if (page === "dynamic") {
     return;
   }
 
-  console.log("%c Add listener", "border: 1px solid red");
-
-  if (listeners[key] === undefined) {
-    listeners[key] = [];
-  }
-
-  if (listeners[key].length === 0) {
-    if (companion.isConnected) {
-      companion.apicommand("request_button", { page, bank });
-    }
-  }
-
-  if (listeners[key].indexOf(context) === -1) {
-    listeners[key].push(context);
-  }
-}
-
-function removeListener(page, buttonselector, context) {
   const [x, y] = buttonselector.split(/:/);
   const bank = x - 1 + (y - 1) * 8;
   const key = page + "_" + bank;
 
+  console.log("%c Add listener", "border: 1px solid red", actionItemId, key);
+
+  let listeners = keyImageListeners.get(key);
+  if (!listeners) {
+    listeners = new Set();
+    keyImageListeners.set(key, listeners);
+  }
+
+  if (listeners.size === 0) {
+    if (companionClient.isConnected) {
+      companionClient.apicommand("request_button", { page, bank });
+    }
+  }
+
+  listeners.add(actionItemId);
+}
+
+function removeKeyImageListener(page, buttonselector, actionItemId) {
   if (page === "dynamic") {
     return;
   }
 
-  console.log("%c Remove listener", "border: 1px solid red");
+  const bank = getKeyIndexFromCoordinate(buttonselector);
+  const key = page + "_" + bank;
 
-  if (listeners[key] === undefined) {
+  console.log("%c Remove listener", "border: 1px solid red", actionItemId, key);
+
+  const listeners = keyImageListeners.get(key);
+  if (!listeners) {
     return;
   }
 
-  const idx = listeners[key].indexOf(context);
-  if (idx !== -1) {
-    listeners[key].splice(idx, 1);
-  }
+  listeners.remove(actionItemId);
 
-  if (listeners[key].length === 0) {
-    companion.apicommand("unrequest_button", { page, bank });
-    delete listeners[key];
+  if (listeners.size === 0) {
+    companionClient.apicommand("unrequest_button", { page, bank });
+    keyImageListeners.delete(key);
     delete imagecache[page + "_" + bank];
   }
 }
 
 /** ACTIONS */
-function getIndexFromCoordinate(data) {
-  // Companion still expects rows to be 5 buttons per row, regardless of current
-  // devices
-  const coordinates = data.split(/:/);
+function getKeyIndexFromCoordinate(buttonselector) {
+  const coordinates = buttonselector.split(/:/);
   return parseInt(coordinates[0]) - 1 + (parseInt(coordinates[1]) - 1) * 8;
 }
 
@@ -224,29 +240,29 @@ function updateImageForIdx(data) {
     imagecache[idx] = data.data;
   }
 
-  for (var ctx in contextes) {
-    if (contextes[ctx].settings.buttonselector !== undefined) {
+  for (var ctx in actionItems) {
+    if (actionItems[ctx].settings.buttonselector !== undefined) {
       if (
         page === undefined &&
-        contextes[ctx].settings.pageselector === "dynamic"
+        actionItems[ctx].settings.pageselector === "dynamic"
       ) {
-        var pos = getIndexFromCoordinate(
-          contextes[ctx].settings.buttonselector
+        var pos = getKeyIndexFromCoordinate(
+          actionItems[ctx].settings.buttonselector
         );
         if (pos == idx) {
-          updateImage(ctx, data.data);
+          updateImageForActionItem(ctx, data.data);
         }
       } else if (page !== undefined) {
         if (
           page !== undefined &&
-          page == contextes[ctx].settings.pageselector
+          page == actionItems[ctx].settings.pageselector
         ) {
-          const [x, y] = contextes[ctx].settings.buttonselector.split(/:/);
+          const [x, y] = actionItems[ctx].settings.buttonselector.split(/:/);
           const pos = x - 1 + (y - 1) * 8;
 
           if (parseInt(pos) === parseInt(idx)) {
             imagecache[page + "_" + idx] = data.data;
-            updateImage(ctx, data.data);
+            updateImageForActionItem(ctx, data.data);
           }
         }
       }
@@ -263,38 +279,23 @@ function sendCanvasToSD(context, canvas) {
   );
 }
 
-function loadImageAsDataUri(url, callback) {
-  var image = new Image();
-
-  image.onload = function () {
-    var canvas = document.createElement("canvas");
-
-    canvas.width = this.naturalWidth;
-    canvas.height = this.naturalHeight;
-
-    var ctx = canvas.getContext("2d");
-    ctx.drawImage(this, 0, 0);
-    callback(canvas.toDataURL("image/png"));
-  };
-
-  image.src = url;
-}
-
-function updateImage(context, data) {
+function updateImageForActionItem(context, data) {
   //console.log("Update image for context ", context);
-  if (!companion.isConnected) {
-    loadImageAsDataUri("img/actionNotConnected.png", function (imgUrl) {
-      $SD.api.setImage(context, imgUrl, DestinationEnum.HARDWARE_AND_SOFTWARE);
-    });
+  if (!companionClient.isConnected) {
+    $SD.api.setImage(
+      context,
+      notConnectedImage,
+      DestinationEnum.HARDWARE_AND_SOFTWARE
+    );
   } else {
     if (data === undefined) {
       if (
-        contextes[context] !== undefined &&
-        contextes[context].settings != undefined
+        actionItems[context] !== undefined &&
+        actionItems[context].settings != undefined
       ) {
-        let page = contextes[context].settings.pageselector;
-        let idx = getIndexFromCoordinate(
-          contextes[context].settings.buttonselector
+        let page = actionItems[context].settings.pageselector;
+        let idx = getKeyIndexFromCoordinate(
+          actionItems[context].settings.buttonselector
         );
 
         if (page !== "dynamic") {
@@ -352,7 +353,7 @@ const action = {
     //contextes[jsn.context].settings = settings;
 
     this.setTitle(jsn);
-    updateImage(jsn.context);
+    updateImageForActionItem(jsn.context);
   },
 
   newOrOldSettings(jsn, settings) {
@@ -386,6 +387,7 @@ const action = {
    */
 
   onWillAppear: function (jsn) {
+    console.log("onWillAppear", jsn);
     const context = jsn.context;
     /**
      * "The willAppear event carries your saved settings (if any). You can use these settings
@@ -398,33 +400,34 @@ const action = {
      */
     let settings = jsn.payload.settings;
 
-    if (contextes[context] === undefined) {
-      contextes[context] = {};
+    if (actionItems[context] === undefined) {
+      actionItems[context] = {};
     }
 
     settings = this.newOrOldSettings(jsn, settings);
 
-    contextes[context].settings = settings;
+    actionItems[context].settings = settings;
 
     this.setTitle(jsn);
 
     if (settings.pageselector && settings.pageselector != "dynamic") {
       const page = settings.pageselector;
 
-      addListener(page, settings.buttonselector, jsn.context);
+      addKeyImageListener(page, settings.buttonselector, jsn.context);
     }
 
     // Show "disconnected icon if not connected"
-    updateImage(context);
+    updateImageForActionItem(context);
   },
 
   onWillDisappear: function (jsn) {
+    console.log("onWillDisappear", jsn);
     let settings = jsn.payload.settings;
 
     if (settings.pageselector && settings.pageselector != "dynamic") {
       const page = settings.pageselector;
 
-      removeListener(page, settings.buttonselector, jsn.context);
+      removeKeyImageListener(page, settings.buttonselector, jsn.context);
     }
   },
 
@@ -434,9 +437,9 @@ const action = {
     const bank = x - 1 + (y - 1) * 8;
 
     if (page === "dynamic") {
-      companion.apicommand("keydown", { keyIndex: bank });
+      companionClient.apicommand("keydown", { keyIndex: bank });
     } else {
-      companion.apicommand("keydown", { page, bank });
+      companionClient.apicommand("keydown", { page, bank });
     }
   },
 
@@ -446,9 +449,9 @@ const action = {
     const bank = x - 1 + (y - 1) * 8;
 
     if (page === "dynamic") {
-      companion.apicommand("keyup", { keyIndex: bank });
+      companionClient.apicommand("keyup", { keyIndex: bank });
     } else {
-      companion.apicommand("keyup", { page, bank });
+      companionClient.apicommand("keyup", { page, bank });
     }
   },
 
@@ -463,36 +466,36 @@ const action = {
     const sdpi_collection = Utils.getProp(jsn, "payload.sdpi_collection", {});
     if (sdpi_collection.value && sdpi_collection.value !== undefined) {
       if (
-        contextes[context].settings !== undefined &&
-        contextes[context].settings[sdpi_collection.key] !=
+        actionItems[context].settings !== undefined &&
+        actionItems[context].settings[sdpi_collection.key] !=
           sdpi_collection.value
       ) {
         if (
-          contextes[context].settings.pageselector !== undefined &&
-          contextes[context].settings.buttonselector !== undefined
+          actionItems[context].settings.pageselector !== undefined &&
+          actionItems[context].settings.buttonselector !== undefined
         ) {
-          removeListener(
-            contextes[context].settings.pageselector,
-            contextes[context].settings.buttonselector,
+          removeKeyImageListener(
+            actionItems[context].settings.pageselector,
+            actionItems[context].settings.buttonselector,
             context
           );
         }
 
-        contextes[context].settings[sdpi_collection.key] =
+        actionItems[context].settings[sdpi_collection.key] =
           sdpi_collection.value;
 
         if (
-          contextes[context].settings.pageselector !== undefined &&
-          contextes[context].settings.buttonselector !== undefined
+          actionItems[context].settings.pageselector !== undefined &&
+          actionItems[context].settings.buttonselector !== undefined
         ) {
-          addListener(
-            contextes[context].settings.pageselector,
-            contextes[context].settings.buttonselector,
+          addKeyImageListener(
+            actionItems[context].settings.pageselector,
+            actionItems[context].settings.buttonselector,
             context
           );
         }
       }
-      updateImage(jsn.context);
+      updateImageForActionItem(jsn.context);
       //this.doSomeThing({ [sdpi_collection.key] : sdpi_collection.value }, 'onSendToPlugin', 'fuchsia');
     }
     console.log("FROM PLUGIN", jsn);
@@ -514,7 +517,7 @@ const action = {
       ...newSettings,
     };
 
-    contextes[jsn.context].settings = settings;
+    actionItems[jsn.context].settings = settings;
     console.log("setSettings....", newSettings, settings);
 
     $SD.api.setSettings(jsn.context, settings);
@@ -524,7 +527,7 @@ const action = {
       defaultActionName
     );
 
-    updateImage(jsn.context);
+    updateImageForActionItem(jsn.context);
   },
 
   titleParametersDidChange: function (jsn) {
