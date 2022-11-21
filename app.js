@@ -72,7 +72,7 @@ $SD.on("connected", (jsn) => {
     companionClient = new CompanionConnection();
 
     // In the future, let people select external companion
-    companionClient.setAddress("10.42.13.197");
+    companionClient.setAddress("127.0.0.1");
 
     companionClient.on("wrongversion", () => {
       for (let ctx in actionItems) {
