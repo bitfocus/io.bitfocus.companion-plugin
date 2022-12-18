@@ -1,5 +1,5 @@
 {
-  "Description": "This lets you control instances in Companion. You need to install Companion 1.3.0 or newer from https://bitfocus.io/companion/ first, to be able to use this plugin.", 
+  "Description": "This lets you control instances in Companion. You need to install Companion 2.4 or newer from https://bitfocus.io/companion/ first, and enable support for this plugin in the Settings tab to be able to use this plugin.", 
   "Name": "Companion button", 
   "Category": "Templates", 
   "io.bitfocus.companion-plugin.action": {

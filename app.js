@@ -77,7 +77,7 @@ $SD.on("connected", (jsn) => {
     companionClient.on("wrongversion", () => {
       for (let ctx in actionItems) {
         errorstate =
-          "You need to install companion 2.0 or newer to use this plugin";
+          "You need to install Companion 2.4 or newer and enable support for this plugin in the Settings tab";
         sendConnectionState(ctx);
       }
     });
@@ -287,7 +287,7 @@ function receivedNewImage(data) {
 
 function redrawCachedImageForActionItem(actionItemId) {
   //console.log("Update image for context ", context);
-  if (!companionClient.isConnected) {
+  if (!companionClient || !companionClient.isConnected) {
     $SD.api.setImage(
       actionItemId,
       notConnectedImage,
@@ -438,6 +438,7 @@ const action = {
     const [x, y] = jsn.payload.settings.buttonselector.split(/:/);
     const bank = x - 1 + (y - 1) * 8;
 
+    console.log('keydown', page, bank)
     if (page === "dynamic") {
       companionClient.apicommand("keydown", { keyIndex: bank });
     } else {
@@ -450,6 +451,7 @@ const action = {
     const [x, y] = jsn.payload.settings.buttonselector.split(/:/);
     const bank = x - 1 + (y - 1) * 8;
 
+    console.log('keyup', page, bank)
     if (page === "dynamic") {
       companionClient.apicommand("keyup", { keyIndex: bank });
     } else {
