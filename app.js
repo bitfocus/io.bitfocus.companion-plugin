@@ -267,6 +267,13 @@ function receivedNewImage(data) {
             imageUrl,
             DestinationEnum.HARDWARE_AND_SOFTWARE
           );
+
+          $SD.api.setFeedback(
+            actionItemId,
+            {
+              canvas: imageUrl,
+            },
+          );
         }
       }
     }
@@ -290,6 +297,13 @@ function receivedNewImage(data) {
             imageUrl,
             DestinationEnum.HARDWARE_AND_SOFTWARE
           );
+
+          $SD.api.setFeedback(
+            actionItemId,
+            {
+              canvas: imageUrl,
+            },
+          );
         }
       }
     }
@@ -303,6 +317,13 @@ function redrawCachedImageForActionItem(actionItemId) {
       actionItemId,
       notConnectedImage,
       DestinationEnum.HARDWARE_AND_SOFTWARE
+    );
+
+    $SD.api.setFeedback(
+      actionItemId,
+      {
+        canvas: notConnectedImage,
+      },
     );
   } else {
     if (actionItems[actionItemId] && actionItems[actionItemId].settings) {
@@ -323,6 +344,13 @@ function redrawCachedImageForActionItem(actionItemId) {
           actionItemId,
           imageUrl,
           DestinationEnum.HARDWARE_AND_SOFTWARE
+        );
+
+        $SD.api.setFeedback(
+          actionItemId,
+          {
+            canvas: imageUrl,
+          },
         );
       }
     }

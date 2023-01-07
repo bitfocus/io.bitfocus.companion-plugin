@@ -1008,6 +1008,10 @@ const SDApi = {
                 }
             });
         },
+        
+        setFeedback: function (context, payload) {
+            SDApi.send(context, 'setFeedback', { payload });
+        },
 
         sendToPropertyInspector: function (context, payload, action) {
             SDApi.send(context, 'sendToPropertyInspector', {
