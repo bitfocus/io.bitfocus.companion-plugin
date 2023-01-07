@@ -64,12 +64,17 @@ function loadImageAsDataUri(url, callback) {
  */
 $SD.on("connected", (jsn) => {
   console.log("Initial data to know about: ", jsn);
+  
+  pluginUUID = jsn.uuid;
+  companionClient = new CompanionConnection();
 
   loadImageAsDataUri("img/actionNotConnected.png", (imgUrl) => {
     notConnectedImage = imgUrl;
 
-    pluginUUID = jsn.uuid;
-    companionClient = new CompanionConnection();
+    // Ensure buttons have the initial drawing
+    for (const context of Object.keys(actionItems)) {
+      redrawCachedImageForActionItem(context);
+    }
 
     // In the future, let people select external companion
     companionClient.setAddress("127.0.0.1");
