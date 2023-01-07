@@ -10,7 +10,8 @@
       ],
       "Tooltip": "Control anything in companion",
       "UUID": "io.bitfocus.companion-plugin.action",
-      "SupportedInMultiActions": true
+      "SupportedInMultiActions": true,
+      "Controllers": ["Keypad", "Encoder"]
     }
   ],
   "Profiles": [
