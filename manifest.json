@@ -26,6 +26,10 @@
     {
       "Name": "companionXL.streamDeckProfile",
       "DeviceType": 2
+    },
+    {
+      "Name": "companionPlus.streamDeckProfile",
+      "DeviceType": 7
     }
   ],
   "SDKVersion": 2,
