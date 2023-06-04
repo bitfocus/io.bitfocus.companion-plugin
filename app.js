@@ -25,7 +25,7 @@ function sendConnectionState(actionItemId) {
   } else if (!companionClient.isConnected) {
     payload = {
       connection:
-        "Connecting to locally running Companion... Make sure you have at least Companion version 2.2.0 or newer and that you have enabled support for the Elgato Plugin",
+        "Connecting to locally running Companion... Make sure you have at least Companion version 2.4.0 or newer and that you have enabled support for the Elgato Plugin",
       class: "caution",
     };
   } else {
