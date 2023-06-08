@@ -9,7 +9,7 @@ let companionClient;
 let pluginUUID = null;
 const actionItems = {};
 const keyImageListeners = new Map();
-const imagecache = {};
+let imagecache = {};
 const defaultActionName = "io.bitfocus.companion-plugin.action";
 let errorstate;
 let notConnectedImage;
@@ -77,7 +77,7 @@ $SD.on("connected", (jsn) => {
     }
 
     // In the future, let people select external companion
-    companionClient.setAddress("127.0.0.1");
+    companionClient.setAddress("10.42.13.197");
 
     companionClient.on("wrongversion", () => {
       for (let ctx in actionItems) {
@@ -88,10 +88,12 @@ $SD.on("connected", (jsn) => {
     });
 
     companionClient.on("connected", () => {
+      imagecache = {}
+
       console.log("New device with plugin UUID: ", pluginUUID);
 
       companionClient.removeAllListeners("new_device:result");
-      companionClient.apicommand("new_device", pluginUUID);
+      companionClient.apicommand("new_device", { id: pluginUUID, supportsPng: true });
       companionClient.once("new_device:result", (res) => {
         console.log("New device result:", res);
 
@@ -239,7 +241,7 @@ function receivedNewImage(data) {
   const keyIndex = data.keyIndex;
   const page = data.page;
 
-  const imageUrl = dataToImageUrl(data.data.data);
+  const imageUrl = data.png ? data.data : dataToImageUrl(data.data.data);
 
   if (page) {
     console.log(
