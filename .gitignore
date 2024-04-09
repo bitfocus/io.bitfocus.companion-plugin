@@ -1,10 +1,6 @@
-.DS_Store
-.idea/**
-/src/DistributionTool
-io.bitfocus.companion-plugin2
-.vscode/**
-package.json
-package-lock.json
-.history
-__exclude
-.editorconfig
+# Node.js
+node_modules/
+
+# Stream Deck files
+*.sdPlugin/bin
+*.sdPlugin/logs

@@ -1,0 +1,8 @@
+{
+	"Actions": [
+		{
+			"PropertyInspectorPath": "actions/template/property-inspector/inspector.html"
+		}
+	],
+	
+}
