@@ -1,4 +1,7 @@
-class EventEmitter {
+
+// @ts-check
+
+class MyEventEmitter {
   constructor() {
     this.events = {};
   }

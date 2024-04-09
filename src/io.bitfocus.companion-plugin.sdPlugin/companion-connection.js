@@ -1,3 +1,4 @@
+
 /*
  * This file is part of the Companion project
  * Copyright (c) 2019 Bitfocus AS
@@ -14,7 +15,14 @@
  * disclosing the source code of your own applications.
  *
  */
-class CompanionConnection extends EventEmitter {
+
+// @ts-check
+/// <reference path="./eventemitter.js" />
+
+class CompanionConnection extends MyEventEmitter {
+  /**
+   * @param {string=} address 
+   */
   constructor(address) {
     super();
 
@@ -30,6 +38,12 @@ class CompanionConnection extends EventEmitter {
       }
     }, 5000);
   }
+
+  /**
+   * set address of Companion
+   * @param {string} address 
+   * @returns {void}
+   */
   setAddress(address) {
     console.log("cc: setAddress", address);
 
@@ -40,7 +54,7 @@ class CompanionConnection extends EventEmitter {
     }
   }
   apicommand(command, args) {
-    if (this.websocket.readyState == 1) {
+    if (this.websocket && this.websocket.readyState == 1) {
       this.websocket.send(
         JSON.stringify({ command: command, arguments: args })
       );
@@ -77,6 +91,7 @@ class CompanionConnection extends EventEmitter {
     };
 
     websocket.onerror = (evt) => {
+      // @ts-ignore
       console.warn("WEBOCKET ERROR", evt, evt.data);
     };
 

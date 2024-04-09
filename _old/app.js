@@ -5,8 +5,8 @@
  * your plugin and subscribe to events sent by Stream Deck to your plugin.
  */
 
-let companionClient;
-let pluginUUID = null;
+// let companionClient;
+// let pluginUUID = null;
 const actionItems = {};
 const keyImageListeners = new Map();
 const imagecache = {};
@@ -39,22 +39,6 @@ function sendConnectionState(actionItemId) {
   $SD.api.sendToPropertyInspector(actionItemId, payload, defaultActionName);
 }
 
-function loadImageAsDataUri(url, callback) {
-  const image = new Image();
-
-  image.onload = function () {
-    var canvas = document.createElement("canvas");
-
-    canvas.width = this.naturalWidth;
-    canvas.height = this.naturalHeight;
-
-    var ctx = canvas.getContext("2d");
-    ctx.drawImage(this, 0, 0);
-    callback(canvas.toDataURL("image/png"));
-  };
-
-  image.src = url;
-}
 
 /**
  * The 'connected' event is sent to your plugin, after the plugin's instance
