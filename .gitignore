@@ -1,0 +1,10 @@
+.DS_Store
+.idea/**
+/src/DistributionTool
+io.bitfocus.companion-plugin2
+.vscode/**
+package.json
+package-lock.json
+.history
+__exclude
+.editorconfig
