@@ -1,4 +1,11 @@
-import { action, KeyDownEvent, SingletonAction, WillAppearEvent } from '@elgato/streamdeck'
+import {
+	action,
+	DidReceiveSettingsEvent,
+	KeyDownEvent,
+	SingletonAction,
+	TitleParametersDidChangeEvent,
+	WillAppearEvent,
+} from '@elgato/streamdeck'
 
 /**
  * An example action class that displays a count that increments by one each time the button is pressed.
@@ -28,6 +35,14 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		// Update the current count in the action's settings, and change the title.
 		await ev.action.setSettings({ count })
 		await ev.action.setTitle(`${count}`)
+	}
+
+	async onDidReceiveSettings(ev: DidReceiveSettingsEvent<CompanionButtonSettings>): Promise<void> {
+		await ev.action.setTitle('')
+	}
+
+	async onTitleParametersDidChange(ev: TitleParametersDidChangeEvent<CompanionButtonSettings>): Promise<void> {
+		await ev.action.setTitle('')
 	}
 }
 

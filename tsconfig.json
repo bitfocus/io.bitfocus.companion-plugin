@@ -5,7 +5,10 @@
 			"node"
 		],
 		"module": "ES2022",
-		"moduleResolution": "Bundler"
+		"moduleResolution": "Bundler",
+		"lib": [
+			"DOM"
+		]
 	},
 	"include": [
 		"src/**/*.ts"

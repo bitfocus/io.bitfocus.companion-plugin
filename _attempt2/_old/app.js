@@ -113,55 +113,6 @@ $SD.on("connected", (jsn) => {
   });
 });
 
-/** subscribe to the willAppear and other events */
-$SD.on("io.bitfocus.companion-plugin.action.willAppear", (jsonObj) =>
-  action.onWillAppear(jsonObj)
-);
-$SD.on("io.bitfocus.companion-plugin.action.willDisappear", (jsonObj) =>
-  action.onWillDisappear(jsonObj)
-);
-$SD.on("io.bitfocus.companion-plugin.action.keyUp", (jsonObj) =>
-  action.onKeyUp(jsonObj)
-);
-$SD.on("io.bitfocus.companion-plugin.action.keyDown", (jsonObj) =>
-  action.onKeyDown(jsonObj)
-);
-$SD.on("io.bitfocus.companion-plugin.action.dialRotate", (jsonObj) =>
-  action.onDialRotate(jsonObj)
-);
-$SD.on("io.bitfocus.companion-plugin.action.dialPress", (jsonObj) =>
-  action.onDialPress(jsonObj)
-);
-$SD.on("io.bitfocus.companion-plugin.action.sendToPlugin", (jsonObj) =>
-  action.onSendToPlugin(jsonObj)
-);
-$SD.on("io.bitfocus.companion-plugin.action.didReceiveSettings", (jsonObj) =>
-  action.onDidReceiveSettings(jsonObj)
-);
-$SD.on(
-  "io.bitfocus.companion-plugin.action.titleParametersDidChange",
-  (...args) => action.titleParametersDidChange(...args)
-);
-$SD.on(
-  "io.bitfocus.companion-plugin.action.propertyInspectorDidAppear",
-  (jsonObj) => {
-    console.log(
-      "%c%s",
-      "color: white; background: black; font-size: 13px;",
-      "[app.js]propertyInspectorDidAppear:"
-    );
-  }
-);
-$SD.on(
-  "io.bitfocus.companion-plugin.action.propertyInspectorDidDisappear",
-  (jsonObj) => {
-    console.log(
-      "%c%s",
-      "color: white; background: red; font-size: 13px;",
-      "[app.js]propertyInspectorDidDisappear:"
-    );
-  }
-);
 
 function addKeyImageListener(page, buttonselector, actionItemId) {
   if (page === "dynamic") {
@@ -341,30 +292,6 @@ function redrawCachedImageForActionItem(actionItemId) {
   }
 }
 
-function dataToImageUrl(data) {
-  var sourceData = new Uint8Array(data);
-  var imageData = new ImageData(72, 72);
-
-  var si = 0,
-    di = 0;
-  for (var y = 0; y < 72; ++y) {
-    for (var x = 0; x < 72; ++x) {
-      imageData.data[di++] = sourceData[si++];
-      imageData.data[di++] = sourceData[si++];
-      imageData.data[di++] = sourceData[si++];
-      imageData.data[di++] = 255;
-    }
-  }
-
-  var canvas = document.createElement("canvas");
-  canvas.width = 72;
-  canvas.height = 72;
-
-  var ctx = canvas.getContext("2d");
-  ctx.putImageData(imageData, 0, 0);
-
-  return canvas.toDataURL("image/png");
-}
 
 const action = {
   settings: {},

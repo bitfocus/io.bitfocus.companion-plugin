@@ -19,22 +19,23 @@ import EventEmitter from 'eventemitter3'
 
 interface CompanionConnectionEvents {
 	disconnect: []
+	fillImage: [data: number[]] // TODO - verify type
 }
 
 class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
-	websocket: WebSocket
+	websocket: WebSocket | undefined
+
+	address: string | undefined
 
 	isConnected = false
 
 	constructor(address?: string) {
 		super()
 
-		this.events = {}
-
 		this.address = address
 		this.isConnected = false
 
-		this.timer = setInterval(() => {
+		/* this.timer = */ setInterval(() => {
 			if (!this.websocket || !this.isConnected) {
 				console.log('Not connected?')
 				this.connect()
