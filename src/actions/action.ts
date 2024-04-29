@@ -1,4 +1,4 @@
-import {
+import streamDeck, {
 	action,
 	DidReceiveSettingsEvent,
 	KeyDownEvent,
@@ -39,6 +39,8 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 	async onDidReceiveSettings(ev: DidReceiveSettingsEvent<CompanionButtonSettings>): Promise<void> {
 		await ev.action.setTitle('')
+
+		streamDeck.logger.debug(`got settings: ${JSON.stringify(ev)}`)
 	}
 
 	async onTitleParametersDidChange(ev: TitleParametersDidChangeEvent<CompanionButtonSettings>): Promise<void> {

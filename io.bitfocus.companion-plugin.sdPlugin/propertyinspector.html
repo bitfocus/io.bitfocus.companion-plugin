@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta
+          name="viewport"
+          content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,minimal-ui,viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+	<title>io.bitfocus.companion-plugin Property Inspector</title>
+	<link rel="stylesheet" href="css/sdpi.css">
+</head>
+<body>
+	<div class="sdpi-wrapper">
+
+		<div class="sdpi-item">
+			<div class="sdpi-item-label">Page</div> 
+			<input data-localize class="sdpi-item-value" id="page-field" name="name" type="number" min="1" value="" placeholder="" />
+		</div>
+		<div class="sdpi-item">
+			<div class="sdpi-item-label">Row</div> 
+			<input data-localize class="sdpi-item-value" id="row-field" name="name" type="number" value="" placeholder="" />
+		</div>
+		<div class="sdpi-item">
+			<div class="sdpi-item-label">Column</div> 
+			<input data-localize class="sdpi-item-value" id="column-field" name="name" type="number" value="" placeholder="" />
+		</div>
+		<div class="sdpi-item">
+			<details class="message info" id="companion_connect" style="display:none">
+				<summary></summary>
+			</details>
+		</div>
+
+	</div>
+
+	<div class="sdpi-info-label hidden" style="top: -1000;" value=""></div>
+	<!-- <script src="js/common.js"></script>
+	<script src="js/common_pi.js"></script> -->
+	<script type="module" src="./bin/inspector.js"></script>
+</body>
+</html>

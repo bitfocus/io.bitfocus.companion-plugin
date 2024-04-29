@@ -10,3 +10,5 @@ streamDeck.actions.registerAction(new CompanionButtonAction())
 
 // Finally, connect to the Stream Deck.
 streamDeck.connect()
+
+// streamDeck.
