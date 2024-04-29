@@ -5,7 +5,7 @@ import { connection } from './companion-connection'
 import { CompanionButtonAction } from './actions/action'
 
 // We can enable "trace" logging so that all messages between the Stream Deck, and the plugin are recorded. When storing sensitive information
-streamDeck.logger.setLevel(LogLevel.TRACE)
+streamDeck.logger.setLevel(LogLevel.DEBUG)
 
 // Register the actions.
 const mainAction = new CompanionButtonAction()
@@ -15,6 +15,7 @@ streamDeck.actions.registerAction(mainAction)
 streamDeck.connect()
 
 connection.on('wrongversion', () => {
+	streamDeck.logger.info('wrong version')
 	// 	for (let ctx in actionItems) {
 	// 	  errorstate =
 	// 		"You need to install Companion 2.4 or newer and enable support for this plugin in the Settings tab";
@@ -23,6 +24,7 @@ connection.on('wrongversion', () => {
 })
 
 connection.on('connected', () => {
+	streamDeck.logger.info('conneced')
 	// console.log('New device with plugin UUID: ', pluginUUID)
 	// 	companionClient.removeAllListeners("new_device:result");
 	// 	companionClient.apicommand("new_device", pluginUUID);
@@ -42,15 +44,18 @@ connection.on('connected', () => {
 	// 	for (let actionItemId in actionItems) {
 	// 	  sendConnectionState(actionItemId);
 	// 	}
+
+	mainAction.subscribeAll()
 })
 
 connection.on('fillImage', (data) => {
-	console.log('fillImage', data)
+	streamDeck.logger.debug('fillImage', data)
 
 	mainAction.receiveImage(data)
 })
 
 connection.on('disconnect', () => {
+	streamDeck.logger.info('disconneced')
 	// 	for (let actionItemId in actionItems) {
 	// 	  redrawCachedImageForActionItem(actionItemId);
 	// 	  sendConnectionState(actionItemId);

@@ -13,10 +13,11 @@ import streamDeck, {
 import imageNotConnected from '../img/actionNotConnected.png'
 
 import { connection, FillImageMessage } from '../companion-connection'
-import { combineBankNumber, dataToImageUrl } from '../util'
+import { combineBankNumber, dataToImageUrl, extractRowAndColumn } from '../util'
 
 interface KeyImageCache {
-	listeners: Map<string, { action: Action<CompanionButtonSettings>; settings: CompanionButtonSettings }>
+	listeners: Map<string, { action: Action<CompanionButtonSettings> }>
+	settings: CompanionButtonSettings
 	cachedImage: string | null
 }
 
@@ -86,30 +87,28 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	}
 
 	receiveImage(data: FillImageMessage) {
-		const keyIndex = data.keyIndex
 		const page = data.page
+
+		const coords = extractRowAndColumn(data)
+		if (!coords) return
+		const { row, column } = coords
 
 		const imageUrl = dataToImageUrl(data.data.data)
 
 		if (page) {
-			console.log('%cImage data for static button', 'border: 1px solid red', page, keyIndex)
+			const keyId = getKeyIdFromSettings({ page, row, column })
 
-			// 	for (const [actionItemId, actionItem] of Object.entries(actionItems)) {
-			// 		if (actionItem.settings.buttonselector && page == actionItem.settings.pageselector) {
-			// 			const pos = getKeyIndexFromCoordinate(actionItem.settings.buttonselector)
+			console.log('%cImage data for static button', 'border: 1px solid red', keyId)
 
-			// 			if (pos == keyIndex) {
-			// 				imagecache[page + '_' + keyIndex] = imageUrl
+			const existing = this.#keyImageListeners.get(keyId)
+			if (existing) {
+				existing.cachedImage = imageUrl
 
-			// 				console.log('sendCanvasToSD', actionItemId)
-			// 				$SD.api.setImage(actionItemId, imageUrl, DestinationEnum.HARDWARE_AND_SOFTWARE)
-
-			// 				$SD.api.setFeedback(actionItemId, {
-			// 					canvas: imageUrl,
-			// 				})
-			// 			}
-			// 		}
-			// 	}
+				for (const [actionItemId, actionItem] of existing.listeners.entries()) {
+					console.log('sendCanvasToSD', actionItemId)
+					actionItem.action.setFeedback({ canvas: imageUrl })
+				}
+			}
 		} else {
 			// 	// Cache all dynamic images
 			// 	imagecache[keyIndex] = imageUrl
@@ -131,6 +130,14 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		}
 	}
 
+	subscribeAll() {
+		if (!connection.isConnected) return
+
+		for (const item of this.#keyImageListeners.values()) {
+			this.#sendSubscribeForSettings(item.settings)
+		}
+	}
+
 	#subscribeAction(action: Action<CompanionButtonSettings>, settings: CompanionButtonSettings) {
 		const keyId = getKeyIdFromSettings(settings)
 
@@ -141,30 +148,34 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 		const existing = this.#keyImageListeners.get(keyId)
 		if (existing && existing.listeners.size > 0) {
-			existing.listeners.set(action.id, { action, settings })
+			existing.listeners.set(action.id, { action })
 
 			// Draw cached image
 			if (existing.cachedImage) {
-				action.setImage(existing.cachedImage).catch(() => {
+				action.setFeedback({ canvas: existing.cachedImage }).catch(() => {
 					// TODO
 				})
 			}
 		} else {
 			const newListeners: KeyImageCache = {
 				listeners: new Map(),
+				settings: { ...settings },
 				cachedImage: null,
 			}
-			newListeners.listeners.set(action.id, { action, settings })
+			newListeners.listeners.set(action.id, { action })
 			this.#keyImageListeners.set(keyId, newListeners)
 
 			// send subscribe
-			if (connection.isConnected) {
-				const bankNumber = combineBankNumber(settings.row, settings.column)
-				if (connection.supportsCoordinates) {
-					connection.apicommand('request_button', { page: settings.page, row: settings.row, column: settings.column })
-				} else if (bankNumber !== null) {
-					connection.apicommand('request_button', { page: settings.page, bank: bankNumber })
-				}
+			this.#sendSubscribeForSettings(settings)
+		}
+	}
+	#sendSubscribeForSettings(settings: CompanionButtonSettings) {
+		if (connection.isConnected) {
+			const bankNumber = combineBankNumber(settings.row, settings.column)
+			if (connection.supportsCoordinates) {
+				connection.apicommand('request_button', { page: settings.page, row: settings.row, column: settings.column })
+			} else if (bankNumber !== null) {
+				connection.apicommand('request_button', { page: settings.page, bank: bankNumber })
 			}
 		}
 	}
@@ -199,7 +210,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 function getKeyIdFromSettings(settings: CompanionButtonSettings) {
 	// const coordinates = buttonselector.split(/:/);
 	// return parseInt(coordinates[0]) - 1 + (parseInt(coordinates[1]) - 1) * 8;
-	return `${settings.page}_${settings.row}_${settings.column}`
+	return `${settings.page}/${settings.row}/${settings.column}`
 }
 
 /**

@@ -55,61 +55,6 @@ $SD.on("connected", (jsn) => {
 
 
 
-/** ACTIONS */
-function getKeyIndexFromCoordinate(buttonselector) {
-  const coordinates = buttonselector.split(/:/);
-  return parseInt(coordinates[0]) - 1 + (parseInt(coordinates[1]) - 1) * 8;
-}
-
-
-function redrawCachedImageForActionItem(actionItemId) {
-  //console.log("Update image for context ", context);
-  if (!companionClient || !companionClient.isConnected) {
-    $SD.api.setImage(
-      actionItemId,
-      notConnectedImage,
-      DestinationEnum.HARDWARE_AND_SOFTWARE
-    );
-
-    $SD.api.setFeedback(
-      actionItemId,
-      {
-        canvas: notConnectedImage,
-      },
-    );
-  } else {
-    if (actionItems[actionItemId] && actionItems[actionItemId].settings) {
-      const page = actionItems[actionItemId].settings.pageselector;
-      let idx = getKeyIndexFromCoordinate(
-        actionItems[actionItemId].settings.buttonselector
-      );
-
-      if (page && page !== "dynamic") {
-        idx = page + "_" + idx;
-      }
-
-      //console.log("SHow image fo idx ", idx);
-      const imageUrl = imagecache[idx];
-      if (imageUrl) {
-        console.log("sendCanvasToSD", actionItemId);
-        $SD.api.setImage(
-          actionItemId,
-          imageUrl,
-          DestinationEnum.HARDWARE_AND_SOFTWARE
-        );
-
-        $SD.api.setFeedback(
-          actionItemId,
-          {
-            canvas: imageUrl,
-          },
-        );
-      }
-    }
-  }
-}
-
-
 const action = {
   settings: {},
   onDidReceiveSettings: function (jsn) {
@@ -189,17 +134,6 @@ const action = {
     redrawCachedImageForActionItem(context);
   },
 
-  onWillDisappear: function (jsn) {
-    console.log("onWillDisappear", jsn);
-    let settings = jsn.payload.settings;
-
-    if (settings.pageselector && settings.pageselector != "dynamic") {
-      const page = settings.pageselector;
-
-      removeKeyImageListener(page, settings.buttonselector, jsn.context);
-    }
-  },
-
   onKeyDown: function (jsn) {
     const page = jsn.payload.settings.pageselector;
     const [x, y] = jsn.payload.settings.buttonselector.split(/:/);
@@ -254,55 +188,6 @@ const action = {
     }
   },
 
-  onSendToPlugin: function (jsn) {
-    const context = jsn.context;
-    /**
-     * this is a message sent directly from the Property Inspector
-     * (e.g. some value, which is not saved to settings)
-     * You can send this event from Property Inspector (see there for an example)
-     */
-
-    const sdpi_collection = Utils.getProp(jsn, "payload.sdpi_collection", {});
-    if (sdpi_collection.value) {
-      if (
-        actionItems[context].settings &&
-        actionItems[context].settings[sdpi_collection.key] !=
-          sdpi_collection.value
-      ) {
-        if (
-          actionItems[context].settings.pageselector &&
-          actionItems[context].settings.buttonselector
-        ) {
-          removeKeyImageListener(
-            actionItems[context].settings.pageselector,
-            actionItems[context].settings.buttonselector,
-            context
-          );
-        }
-
-        actionItems[context].settings[sdpi_collection.key] =
-          sdpi_collection.value;
-
-        if (
-          actionItems[context].settings.pageselector &&
-          actionItems[context].settings.buttonselector
-        ) {
-          addKeyImageListener(
-            actionItems[context].settings.pageselector,
-            actionItems[context].settings.buttonselector,
-            context
-          );
-        }
-      }
-      redrawCachedImageForActionItem(jsn.context);
-      //this.doSomeThing({ [sdpi_collection.key] : sdpi_collection.value }, 'onSendToPlugin', 'fuchsia');
-    }
-    console.log("FROM PLUGIN", jsn);
-
-    if (jsn.payload.command == "get_connection") {
-      sendConnectionState(context);
-    }
-  },
 
   saveSettings: function (jsn, newSettings) {
     console.log("saveSettings:", jsn, this);

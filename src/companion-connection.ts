@@ -16,10 +16,13 @@
  */
 
 import EventEmitter from 'eventemitter3'
+import { WebSocket } from 'ws'
 
 export interface FillImageMessage {
 	page: number | null
 	keyIndex: number | undefined
+	row: number | undefined
+	column: number | undefined
 	data: { data: number[] }
 }
 
