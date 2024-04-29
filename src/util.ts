@@ -44,3 +44,10 @@ export async function loadImageAsDataUri(url: string): Promise<string> {
 		image.src = url
 	})
 }
+
+export function combineBankNumber(row: number, column: number): number | null {
+	if (row < 0 || row >= 4) return null
+	if (column < 0 || column >= 8) return null
+
+	return row * 8 + column
+}

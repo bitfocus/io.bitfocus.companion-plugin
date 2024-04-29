@@ -17,9 +17,17 @@
 
 import EventEmitter from 'eventemitter3'
 
+export interface FillImageMessage {
+	page: number | null
+	keyIndex: number | undefined
+	data: { data: number[] }
+}
+
 interface CompanionConnectionEvents {
+	connected: []
 	disconnect: []
-	fillImage: [data: number[]] // TODO - verify type
+	wrongversion: []
+	fillImage: [data: FillImageMessage]
 }
 
 class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
@@ -28,6 +36,7 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 	address: string | undefined
 
 	isConnected = false
+	supportsCoordinates = false // TODO - support this
 
 	constructor(address?: string) {
 		super()

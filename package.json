@@ -8,6 +8,7 @@
 	"devDependencies": {
 		"@elgato/cli": "^0.2.0",
 		"@rollup/plugin-commonjs": "^25.0.5",
+		"@rollup/plugin-image": "^3.0.3",
 		"@rollup/plugin-node-resolve": "^15.2.2",
 		"@rollup/plugin-terser": "^0.4.4",
 		"@rollup/plugin-typescript": "^11.1.5",

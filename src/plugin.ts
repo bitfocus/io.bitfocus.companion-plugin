@@ -1,14 +1,65 @@
 import streamDeck, { LogLevel } from '@elgato/streamdeck'
 
+import { connection } from './companion-connection'
+
 import { CompanionButtonAction } from './actions/action'
 
 // We can enable "trace" logging so that all messages between the Stream Deck, and the plugin are recorded. When storing sensitive information
 streamDeck.logger.setLevel(LogLevel.TRACE)
 
 // Register the actions.
-streamDeck.actions.registerAction(new CompanionButtonAction())
+const mainAction = new CompanionButtonAction()
+streamDeck.actions.registerAction(mainAction)
 
 // Finally, connect to the Stream Deck.
 streamDeck.connect()
+
+connection.on('wrongversion', () => {
+	// 	for (let ctx in actionItems) {
+	// 	  errorstate =
+	// 		"You need to install Companion 2.4 or newer and enable support for this plugin in the Settings tab";
+	// 	  sendConnectionState(ctx);
+	// 	}
+})
+
+connection.on('connected', () => {
+	// console.log('New device with plugin UUID: ', pluginUUID)
+	// 	companionClient.removeAllListeners("new_device:result");
+	// 	companionClient.apicommand("new_device", pluginUUID);
+	// 	companionClient.once("new_device:result", (res) => {
+	// 	  console.log("New device result:", res);
+	// 	  for (const key of keyImageListeners.keys()) {
+	// 		let [page, bank] = key.split(/_/);
+	// 		console.log(
+	// 		  "%c Initial request_button",
+	// 		  "border: 1px solid red",
+	// 		  page,
+	// 		  bank
+	// 		);
+	// 		companionClient.apicommand("request_button", { page, bank });
+	// 	  }
+	// 	});
+	// 	for (let actionItemId in actionItems) {
+	// 	  sendConnectionState(actionItemId);
+	// 	}
+})
+
+connection.on('fillImage', (data) => {
+	console.log('fillImage', data)
+
+	mainAction.receiveImage(data)
+})
+
+connection.on('disconnect', () => {
+	// 	for (let actionItemId in actionItems) {
+	// 	  redrawCachedImageForActionItem(actionItemId);
+	// 	  sendConnectionState(actionItemId);
+	// 	}
+	// 	errorstate = undefined;
+})
+
+// connection.setAddress('10.42.13.140')
+connection.setAddress('companion.ct.julus.uk')
+connection.connect()
 
 // streamDeck.
