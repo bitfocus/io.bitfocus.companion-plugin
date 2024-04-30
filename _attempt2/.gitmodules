@@ -1,3 +1,0 @@
-[submodule "src/io.bitfocus.companion-plugin.sdPlugin/libs"]
-	path = src/io.bitfocus.companion-plugin.sdPlugin/libs
-	url = https://github.com/elgatosf/streamdeck-javascript-sdk
