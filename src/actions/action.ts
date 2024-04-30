@@ -2,8 +2,12 @@ import streamDeck, {
 	Action,
 	action,
 	ActionEvent,
+	DialDownEvent,
+	DialRotateEvent,
+	DialUpEvent,
 	DidReceiveSettingsEvent,
 	KeyDownEvent,
+	KeyUpEvent,
 	SingletonAction,
 	TitleParametersDidChangeEvent,
 	WillAppearEvent,
@@ -45,9 +49,20 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			column: 0,
 			...(ev.payload.settings as Partial<CompanionButtonSettings>),
 		}
-		if ((ev.payload.settings.page as any) === 'dynamic') {
+
+		const oldPageSelector = (ev.payload.settings as any).pageselector
+		delete (ev.payload.settings as any).pageselector
+		if (oldPageSelector === 'dynamic') {
 			ev.payload.settings.page = 1
 			ev.payload.settings.dynamicPage = true
+		} else if (oldPageSelector) {
+			ev.payload.settings.page = Number(oldPageSelector) || ev.payload.settings.page
+			ev.payload.settings.dynamicPage = false
+		}
+		const oldBankSelector = (ev.payload.settings as any).bankselector
+		delete (ev.payload.settings as any).bankselector
+		if (oldBankSelector) {
+			// TODO
 		}
 
 		await ev.action.setSettings(ev.payload.settings)
@@ -68,19 +83,39 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		}
 	}
 
-	/**
-	 * Listens for the {@link SingletonAction.onKeyDown} event which is emitted by Stream Deck when an action is pressed. Stream Deck provides various events for tracking interaction
-	 * with devices including key down/up, dial rotations, and device connectivity, etc. When triggered, {@link ev} object contains information about the event including any payloads
-	 * and action information where applicable. In this example, our action will display a counter that increments by one each press. We track the current count on the action's persisted
-	 * settings using `setSettings` and `getSettings`.
-	 */
-	async onKeyDown(ev: KeyDownEvent<CompanionButtonSettings>): Promise<void> {
-		// Determine the current count from the settings.
-		let page = ev.payload.settings.page ?? 0
-		page++
+	async #sendButtonEvent(name: string, settings: CompanionButtonSettings, extraProps?: Record<string, any>) {
+		const page = settings.page
+		const bank = combineBankNumber(settings.row, settings.column)
 
-		// Update the current count in the action's settings, and change the title.
-		await ev.action.setSettings({ ...ev.payload.settings, page })
+		console.log(name, settings.dynamicPage, page, bank)
+		if (connection.supportsCoordinates) {
+			connection.apicommand('keydown', {
+				page: settings.dynamicPage ? settings.page : null,
+				row: settings.row,
+				column: settings.column,
+				...extraProps,
+			})
+		} else if (settings.dynamicPage && bank) {
+			connection.apicommand(name, { keyIndex: bank, ...extraProps })
+		} else if (bank) {
+			connection.apicommand(name, { page, bank, ...extraProps })
+		}
+	}
+
+	async onKeyDown(ev: KeyDownEvent<CompanionButtonSettings>): Promise<void> {
+		await this.#sendButtonEvent('keydown', ev.payload.settings)
+	}
+	async onKeyUp(ev: KeyUpEvent<CompanionButtonSettings>): Promise<void> {
+		await this.#sendButtonEvent('keyup', ev.payload.settings)
+	}
+	async onDialRotate(ev: DialRotateEvent<CompanionButtonSettings>): Promise<void> {
+		await this.#sendButtonEvent('rotate', ev.payload.settings, { ticks: ev.payload.ticks })
+	}
+	async onDialDown(ev: DialDownEvent<CompanionButtonSettings>): Promise<void> {
+		await this.#sendButtonEvent('keydown', ev.payload.settings)
+	}
+	async onDialUp(ev: DialUpEvent<CompanionButtonSettings>): Promise<void> {
+		await this.#sendButtonEvent('keyup', ev.payload.settings)
 	}
 
 	async onDidReceiveSettings(ev: DidReceiveSettingsEvent<CompanionButtonSettings>): Promise<void> {
@@ -115,8 +150,10 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 		const imageUrl = data.png ? data.data : dataToImageUrl(data.data.data)
 
-		const buttonSettings: CompanionButtonSettings = { dynamicPage: !!page, page: page || 0, row, column }
+		const buttonSettings: CompanionButtonSettings = { dynamicPage: !page, page: page || 0, row, column }
 		const keyId = getKeyIdFromSettings(buttonSettings)
+
+		streamDeck.logger.debug(`aaa ${JSON.stringify(buttonSettings)}`)
 
 		const existing = this.#keyImageListeners.get(keyId)
 		if (existing) {
