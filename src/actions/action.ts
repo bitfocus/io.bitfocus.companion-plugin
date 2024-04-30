@@ -95,9 +95,9 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 				column: settings.column,
 				...extraProps,
 			})
-		} else if (settings.dynamicPage && bank) {
+		} else if (settings.dynamicPage && bank != null) {
 			connection.apicommand(name, { keyIndex: bank, ...extraProps })
-		} else if (bank) {
+		} else if (bank != null) {
 			connection.apicommand(name, { page, bank, ...extraProps })
 		}
 	}
@@ -153,8 +153,6 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		const buttonSettings: CompanionButtonSettings = { dynamicPage: !page, page: page || 0, row, column }
 		const keyId = getKeyIdFromSettings(buttonSettings)
 
-		streamDeck.logger.debug(`aaa ${JSON.stringify(buttonSettings)}`)
-
 		const existing = this.#keyImageListeners.get(keyId)
 		if (existing) {
 			existing.cachedImage = imageUrl
@@ -164,7 +162,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 					// TODO
 				})
 			}
-		} else {
+		} else if (buttonSettings.dynamicPage) {
 			this.#keyImageListeners.set(keyId, {
 				listeners: new Map(),
 				settings: { ...buttonSettings },
@@ -197,7 +195,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		streamDeck.logger.debug(`do sub ${keyId}`)
 
 		const existing = this.#keyImageListeners.get(keyId)
-		if (existing && existing.listeners.size > 0) {
+		if (existing && (existing.listeners.size > 0 || settings.dynamicPage)) {
 			existing.listeners.set(action.id, { action })
 
 			// Draw cached image
