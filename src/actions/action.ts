@@ -36,7 +36,22 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	 * we're setting the title to the "count" that is incremented in {@link CompanionButtonAction.onKeyDown}.
 	 */
 	async onWillAppear(ev: WillAppearEvent<CompanionButtonSettings>): Promise<void> {
-		await ev.action.setTitle(`${ev.payload.settings.count ?? 0}`)
+		// ensure defaults are populated
+		ev.payload.settings = {
+			dynamicPage: true,
+			page: 1,
+			// dynamicPosition: !ev.payload.settings.page, // default to true only for newly placed actions
+			row: 0,
+			column: 0,
+			...(ev.payload.settings as Partial<CompanionButtonSettings>),
+		}
+		if ((ev.payload.settings.page as any) === 'dynamic') {
+			ev.payload.settings.page = 1
+			ev.payload.settings.dynamicPage = true
+		}
+
+		await ev.action.setSettings(ev.payload.settings)
+
 		this.#drawImage(ev.action, connection.isConnected ? imageLoading : imageNotConnected)
 
 		this.#actionItems.set(ev.action.id, { action: ev.action, settings: ev.payload.settings })
@@ -66,7 +81,6 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 		// Update the current count in the action's settings, and change the title.
 		await ev.action.setSettings({ ...ev.payload.settings, page })
-		await ev.action.setTitle(`${page}`)
 	}
 
 	async onDidReceiveSettings(ev: DidReceiveSettingsEvent<CompanionButtonSettings>): Promise<void> {
@@ -92,7 +106,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 		const page = data.page
 
-		streamDeck.logger.debug(`drawing ${JSON.stringify({ ...data, data: null })}`)
+		streamDeck.logger.debug(`fillImage ${JSON.stringify({ ...data, data: null })}`)
 
 		const coords = extractRowAndColumn(data)
 		// streamDeck.logger.debug(`got draw at ${JSON.stringify(coords)} from ${JSON.stringify(data)}`)
@@ -101,40 +115,24 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 		const imageUrl = data.png ? data.data : dataToImageUrl(data.data.data)
 
-		streamDeck.logger.debug(`drawing ${page}/${row}/${column}`)
+		const buttonSettings: CompanionButtonSettings = { dynamicPage: !!page, page: page || 0, row, column }
+		const keyId = getKeyIdFromSettings(buttonSettings)
 
-		if (page) {
-			const keyId = getKeyIdFromSettings({ page, row, column })
+		const existing = this.#keyImageListeners.get(keyId)
+		if (existing) {
+			existing.cachedImage = imageUrl
 
-			const existing = this.#keyImageListeners.get(keyId)
-			if (existing) {
-				existing.cachedImage = imageUrl
-
-				for (const [actionItemId, actionItem] of existing.listeners.entries()) {
-					streamDeck.logger.debug('sendCanvasToSD =' + actionItemId)
-					this.#drawImage(actionItem.action, imageUrl).catch(() => {
-						// TODO
-					})
-				}
+			for (const [actionItemId, actionItem] of existing.listeners.entries()) {
+				this.#drawImage(actionItem.action, imageUrl).catch(() => {
+					// TODO
+				})
 			}
 		} else {
-			// 	// Cache all dynamic images
-			// 	imagecache[keyIndex] = imageUrl
-			// 	for (const [actionItemId, actionItem] of Object.entries(actionItems)) {
-			// 		if (
-			// 			actionItem.settings.buttonselector &&
-			// 			(actionItem.settings.pageselector === 'dynamic' || !actionItem.settings.pageselector)
-			// 		) {
-			// 			const pos = getKeyIndexFromCoordinate(actionItem.settings.buttonselector)
-			// 			if (pos == keyIndex) {
-			// 				console.log('sendCanvasToSD', actionItemId)
-			// 				$SD.api.setImage(actionItemId, imageUrl, DestinationEnum.HARDWARE_AND_SOFTWARE)
-			// 				$SD.api.setFeedback(actionItemId, {
-			// 					canvas: imageUrl,
-			// 				})
-			// 			}
-			// 		}
-			// 	}
+			this.#keyImageListeners.set(keyId, {
+				listeners: new Map(),
+				settings: { ...buttonSettings },
+				cachedImage: imageUrl,
+			})
 		}
 	}
 
@@ -158,11 +156,6 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 	#subscribeAction(action: Action<CompanionButtonSettings>, settings: CompanionButtonSettings) {
 		const keyId = getKeyIdFromSettings(settings)
-
-		// TODO: this
-		// if (page === "dynamic") {
-		// 	return;
-		//   }
 
 		streamDeck.logger.debug(`do sub ${keyId}`)
 
@@ -190,6 +183,8 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		}
 	}
 	#sendSubscribeForSettings(settings: CompanionButtonSettings) {
+		if (settings.dynamicPage) return
+
 		if (connection.isConnected) {
 			const bankNumber = combineBankNumber(settings.row, settings.column)
 			streamDeck.logger.debug(`send subscribe: ${JSON.stringify(settings)} ${bankNumber}`)
@@ -203,11 +198,6 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	#unsubscribeAction(action: Action<CompanionButtonSettings>, settings: CompanionButtonSettings) {
 		const keyId = getKeyIdFromSettings(settings)
 
-		// TODO - this
-		// if (page === "dynamic") {
-		// 	return;
-		//   }
-
 		this.#drawImage(action, connection.isConnected ? imageLoading : imageNotConnected)
 
 		const existing = this.#keyImageListeners.get(keyId)
@@ -215,7 +205,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 		existing.listeners.delete(action.id)
 
-		if (existing.listeners.size === 0) {
+		if (existing.listeners.size === 0 && !settings.dynamicPage) {
 			if (connection.isConnected) {
 				const bankNumber = combineBankNumber(settings.row, settings.column)
 				if (connection.supportsCoordinates) {
@@ -233,14 +223,16 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 function getKeyIdFromSettings(settings: CompanionButtonSettings) {
 	// const coordinates = buttonselector.split(/:/);
 	// return parseInt(coordinates[0]) - 1 + (parseInt(coordinates[1]) - 1) * 8;
-	return `${settings.page}/${settings.row}/${settings.column}`
+	return `${settings.dynamicPage ? 'dynamic' : settings.page}/${settings.row}/${settings.column}`
 }
 
 /**
  * Settings for {@link CompanionButtonAction}.
  */
 type CompanionButtonSettings = {
+	dynamicPage: boolean
 	page: number
+	// dynamicPosition: boolean
 	row: number
 	column: number
 }

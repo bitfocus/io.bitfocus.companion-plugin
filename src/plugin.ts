@@ -52,7 +52,7 @@ connection.on('connected', () => {
 })
 
 connection.on('fillImage', (data) => {
-	streamDeck.logger.debug('fillImage', data)
+	// streamDeck.logger.debug('fillImage', data)
 
 	mainAction.receiveImage(data)
 })

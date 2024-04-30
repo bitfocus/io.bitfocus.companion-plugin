@@ -36,12 +36,15 @@ export function combineBankNumber(row: number, column: number): number | null {
 export function extractRowAndColumn(props: FillImageMessage): { row: number; column: number } | null {
 	if (props.column != null && props.row != null) {
 		return { row: props.row, column: props.column }
-	} else if (props.bank != null) {
-		const row = Math.floor(props.bank / 8)
-		const column = props.bank % 8
+	}
+
+	const bankOrIndex = props.bank || props.keyIndex
+	if (bankOrIndex != null) {
+		const row = Math.floor(bankOrIndex / 8)
+		const column = bankOrIndex % 8
 
 		return { row, column }
-	} else {
-		return null
 	}
+
+	return null
 }

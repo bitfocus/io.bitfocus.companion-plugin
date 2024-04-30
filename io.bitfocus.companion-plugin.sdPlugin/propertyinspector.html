@@ -10,19 +10,40 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
 	<title>io.bitfocus.companion-plugin Property Inspector</title>
 	<link rel="stylesheet" href="css/sdpi.css">
+
+	<style>
+		.sdpi-item[type="checkbox"]:first-of-type {
+			margin-bottom: -7px;
+			margin-top: -2px;
+		}
+
+		.sdpi-item[type="checkbox"] label {
+			margin-left: 4px;
+		}
+	</style>
 </head>
 <body>
 	<div class="sdpi-wrapper">
-
-		<div class="sdpi-item">
+		<div type="checkbox" class="sdpi-item">
+			<div class="sdpi-item-label">Dynamic Page</div>
+			<input class="sdpi-item-value" id="dynamic-page-field" type="checkbox" value="left">
+			<label for="dynamic-page-field"><span>
+		</div>
+		<div class="sdpi-item" id="page-wrapper">
 			<div class="sdpi-item-label">Page</div> 
 			<input data-localize class="sdpi-item-value" id="page-field" name="name" type="number" min="1" value="" placeholder="" />
 		</div>
-		<div class="sdpi-item">
+
+		<!-- <div type="checkbox" class="sdpi-item">
+			<div class="sdpi-item-label">Dynamic Position</div>
+			<input class="sdpi-item-value" id="dynamic-position-field" type="checkbox" value="left">
+			<label for="dynamic-position-field"><span>
+		</div> -->
+		<div class="sdpi-item" id="row-wrapper">
 			<div class="sdpi-item-label">Row</div> 
 			<input data-localize class="sdpi-item-value" id="row-field" name="name" type="number" value="" placeholder="" />
 		</div>
-		<div class="sdpi-item">
+		<div class="sdpi-item" id="column-wrapper">
 			<div class="sdpi-item-label">Column</div> 
 			<input data-localize class="sdpi-item-value" id="column-field" name="name" type="number" value="" placeholder="" />
 		</div>
@@ -31,12 +52,8 @@
 				<summary></summary>
 			</details>
 		</div>
-
 	</div>
 
-	<div class="sdpi-info-label hidden" style="top: -1000;" value=""></div>
-	<!-- <script src="js/common.js"></script>
-	<script src="js/common_pi.js"></script> -->
 	<script type="module" src="./bin/inspector.js"></script>
 </body>
 </html>
