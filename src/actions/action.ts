@@ -11,6 +11,7 @@ import streamDeck, {
 } from '@elgato/streamdeck'
 
 import imageNotConnected from '../img/actionNotConnected.png'
+import imageLoading from '../img/loadingIcon.png'
 
 import { connection, FillImageMessage } from '../companion-connection'
 import { combineBankNumber, dataToImageUrl, extractRowAndColumn } from '../util'
@@ -27,7 +28,7 @@ interface KeyImageCache {
 @action({ UUID: 'io.bitfocus.companion-plugin.action' })
 export class CompanionButtonAction extends SingletonAction<CompanionButtonSettings> {
 	#keyImageListeners = new Map<string, KeyImageCache>()
-	#actionItems = new Map<string, CompanionButtonSettings>()
+	#actionItems = new Map<string, { action: Action<CompanionButtonSettings>; settings: CompanionButtonSettings }>()
 
 	/**
 	 * The {@link SingletonAction.onWillAppear} event is useful for setting the visual representation of an action when it become visible. This could be due to the Stream Deck first
@@ -36,19 +37,19 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	 */
 	async onWillAppear(ev: WillAppearEvent<CompanionButtonSettings>): Promise<void> {
 		await ev.action.setTitle(`${ev.payload.settings.count ?? 0}`)
-		await ev.action.setImage(imageNotConnected)
+		this.#drawImage(ev.action, connection.isConnected ? imageLoading : imageNotConnected)
 
-		this.#actionItems.set(ev.action.id, ev.payload.settings)
+		this.#actionItems.set(ev.action.id, { action: ev.action, settings: ev.payload.settings })
 
 		this.#subscribeAction(ev.action, ev.payload.settings)
 	}
 
 	async onWillDisappear(ev: WillDisappearEvent<CompanionButtonSettings>): Promise<void> {
-		const settings = this.#actionItems.get(ev.action.id)
+		const actionItem = this.#actionItems.get(ev.action.id)
 		this.#actionItems.delete(ev.action.id)
 
-		if (settings) {
-			this.#unsubscribeAction(ev.action, settings)
+		if (actionItem) {
+			this.#unsubscribeAction(ev.action, actionItem.settings)
 		}
 	}
 
@@ -74,11 +75,11 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		streamDeck.logger.debug(`got settings: ${JSON.stringify(ev)}`)
 
 		// unsubscribe old settings
-		const oldSettings = this.#actionItems.get(ev.action.id)
-		if (oldSettings) this.#unsubscribeAction(ev.action, oldSettings)
+		const oldActionItem = this.#actionItems.get(ev.action.id)
+		if (oldActionItem) this.#unsubscribeAction(ev.action, oldActionItem.settings)
 
 		// subscribe new settings
-		this.#actionItems.set(ev.action.id, ev.payload.settings)
+		this.#actionItems.set(ev.action.id, { action: ev.action, settings: ev.payload.settings })
 		this.#subscribeAction(ev.action, ev.payload.settings)
 	}
 
@@ -87,26 +88,33 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	}
 
 	receiveImage(data: FillImageMessage) {
+		// streamDeck.logger.debug(`got image: ${JSON.stringify(data)}`)
+
 		const page = data.page
 
+		streamDeck.logger.debug(`drawing ${JSON.stringify({ ...data, data: null })}`)
+
 		const coords = extractRowAndColumn(data)
+		// streamDeck.logger.debug(`got draw at ${JSON.stringify(coords)} from ${JSON.stringify(data)}`)
 		if (!coords) return
 		const { row, column } = coords
 
-		const imageUrl = dataToImageUrl(data.data.data)
+		const imageUrl = data.png ? data.data : dataToImageUrl(data.data.data)
+
+		streamDeck.logger.debug(`drawing ${page}/${row}/${column}`)
 
 		if (page) {
 			const keyId = getKeyIdFromSettings({ page, row, column })
-
-			console.log('%cImage data for static button', 'border: 1px solid red', keyId)
 
 			const existing = this.#keyImageListeners.get(keyId)
 			if (existing) {
 				existing.cachedImage = imageUrl
 
 				for (const [actionItemId, actionItem] of existing.listeners.entries()) {
-					console.log('sendCanvasToSD', actionItemId)
-					actionItem.action.setFeedback({ canvas: imageUrl })
+					streamDeck.logger.debug('sendCanvasToSD =' + actionItemId)
+					this.#drawImage(actionItem.action, imageUrl).catch(() => {
+						// TODO
+					})
 				}
 			}
 		} else {
@@ -137,6 +145,16 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			this.#sendSubscribeForSettings(item.settings)
 		}
 	}
+	connectionStateChange() {
+		for (const actionItem of this.#actionItems.values()) {
+			this.#drawImage(actionItem.action, connection.isConnected ? imageLoading : imageNotConnected)
+		}
+	}
+
+	async #drawImage(action: Action<CompanionButtonSettings>, image: string) {
+		await action.setImage(image)
+		await action.setFeedback({ canvas: image })
+	}
 
 	#subscribeAction(action: Action<CompanionButtonSettings>, settings: CompanionButtonSettings) {
 		const keyId = getKeyIdFromSettings(settings)
@@ -146,13 +164,15 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		// 	return;
 		//   }
 
+		streamDeck.logger.debug(`do sub ${keyId}`)
+
 		const existing = this.#keyImageListeners.get(keyId)
 		if (existing && existing.listeners.size > 0) {
 			existing.listeners.set(action.id, { action })
 
 			// Draw cached image
 			if (existing.cachedImage) {
-				action.setFeedback({ canvas: existing.cachedImage }).catch(() => {
+				this.#drawImage(action, existing.cachedImage).catch(() => {
 					// TODO
 				})
 			}
@@ -172,6 +192,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	#sendSubscribeForSettings(settings: CompanionButtonSettings) {
 		if (connection.isConnected) {
 			const bankNumber = combineBankNumber(settings.row, settings.column)
+			streamDeck.logger.debug(`send subscribe: ${JSON.stringify(settings)} ${bankNumber}`)
 			if (connection.supportsCoordinates) {
 				connection.apicommand('request_button', { page: settings.page, row: settings.row, column: settings.column })
 			} else if (bankNumber !== null) {
@@ -186,6 +207,8 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		// if (page === "dynamic") {
 		// 	return;
 		//   }
+
+		this.#drawImage(action, connection.isConnected ? imageLoading : imageNotConnected)
 
 		const existing = this.#keyImageListeners.get(keyId)
 		if (!existing) return

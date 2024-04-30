@@ -1,29 +1,29 @@
 import { FillImageMessage } from './companion-connection'
+import { PNG } from 'pngjs'
 
+// TODO - this is very inefficient
 export function dataToImageUrl(data: number[]): string {
-	const sourceData = new Uint8Array(data)
-	const imageData = new ImageData(72, 72)
+	const png = new PNG({
+		width: 72,
+		height: 72,
+	})
 
-	let si = 0
-	let di = 0
-	for (var y = 0; y < 72; ++y) {
-		for (var x = 0; x < 72; ++x) {
-			imageData.data[di++] = sourceData[si++]
-			imageData.data[di++] = sourceData[si++]
-			imageData.data[di++] = sourceData[si++]
-			imageData.data[di++] = 255
+	const inputData = Buffer.from(data)
+
+	// Transform the received RGB to RGBA
+	for (let y = 0; y < 72; y++) {
+		for (let x = 0; x < 72; x++) {
+			const from = (y * 72 + x) * 3
+			const to = (y * 72 + x) * 4
+
+			png.data.writeUint8(inputData.readUint8(from), to)
+			png.data.writeUint8(inputData.readUint8(from + 1), to + 1)
+			png.data.writeUint8(inputData.readUint8(from + 2), to + 2)
+			png.data.writeUint8(255, to + 3)
 		}
 	}
 
-	const canvas = document.createElement('canvas')
-	canvas.width = 72
-	canvas.height = 72
-
-	const ctx = canvas.getContext('2d')
-	if (!ctx) throw new Error('Failed to get canvas context')
-	ctx.putImageData(imageData, 0, 0)
-
-	return canvas.toDataURL('image/png')
+	return 'data:image/png;base64,' + PNG.sync.write(png).toString('base64')
 }
 
 export function combineBankNumber(row: number, column: number): number | null {
@@ -36,9 +36,9 @@ export function combineBankNumber(row: number, column: number): number | null {
 export function extractRowAndColumn(props: FillImageMessage): { row: number; column: number } | null {
 	if (props.column != null && props.row != null) {
 		return { row: props.row, column: props.column }
-	} else if (props.keyIndex != null) {
-		const row = Math.floor((props.keyIndex - 1) / 8)
-		const column = (props.keyIndex - 1) % 8
+	} else if (props.bank != null) {
+		const row = Math.floor(props.bank / 8)
+		const column = props.bank % 8
 
 		return { row, column }
 	} else {

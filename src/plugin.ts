@@ -25,22 +25,25 @@ connection.on('wrongversion', () => {
 
 connection.on('connected', () => {
 	streamDeck.logger.info('conneced')
+
+	mainAction.connectionStateChange()
+
 	// console.log('New device with plugin UUID: ', pluginUUID)
 	// 	companionClient.removeAllListeners("new_device:result");
-	// 	companionClient.apicommand("new_device", pluginUUID);
-	// 	companionClient.once("new_device:result", (res) => {
-	// 	  console.log("New device result:", res);
-	// 	  for (const key of keyImageListeners.keys()) {
-	// 		let [page, bank] = key.split(/_/);
-	// 		console.log(
-	// 		  "%c Initial request_button",
-	// 		  "border: 1px solid red",
-	// 		  page,
-	// 		  bank
-	// 		);
-	// 		companionClient.apicommand("request_button", { page, bank });
-	// 	  }
-	// 	});
+	connection.apicommand('new_device', { id: 'temp_id', supportsPng: true })
+	connection.once('new_device:result', (res) => {
+		console.log('New device result:', res)
+		//   for (const key of keyImageListeners.keys()) {
+		// 	let [page, bank] = key.split(/_/);
+		// 	console.log(
+		// 	  "%c Initial request_button",
+		// 	  "border: 1px solid red",
+		// 	  page,
+		// 	  bank
+		// 	);
+		// 	companionClient.apicommand("request_button", { page, bank });
+		//   }
+	})
 	// 	for (let actionItemId in actionItems) {
 	// 	  sendConnectionState(actionItemId);
 	// 	}
@@ -56,6 +59,9 @@ connection.on('fillImage', (data) => {
 
 connection.on('disconnect', () => {
 	streamDeck.logger.info('disconneced')
+
+	mainAction.connectionStateChange()
+
 	// 	for (let actionItemId in actionItems) {
 	// 	  redrawCachedImageForActionItem(actionItemId);
 	// 	  sendConnectionState(actionItemId);
@@ -64,7 +70,8 @@ connection.on('disconnect', () => {
 })
 
 // connection.setAddress('10.42.13.140')
-connection.setAddress('companion.ct.julus.uk')
+connection.setAddress('100.116.211.104')
+// connection.setAddress('companion.ct.julus.uk')
 connection.connect()
 
 // streamDeck.

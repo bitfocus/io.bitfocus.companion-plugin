@@ -15,16 +15,17 @@
  *
  */
 
+import streamDeck from '@elgato/streamdeck'
 import EventEmitter from 'eventemitter3'
 import { WebSocket } from 'ws'
 
-export interface FillImageMessage {
+export type FillImageMessage = {
 	page: number | null
+	bank: number | null
 	keyIndex: number | undefined
 	row: number | undefined
 	column: number | undefined
-	data: { data: number[] }
-}
+} & ({ png: true; data: string } | { png: undefined; data: { data: number[] } })
 
 interface CompanionConnectionEvents {
 	connected: []
@@ -66,7 +67,9 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 	}
 	apicommand(command, args) {
 		if (this.websocket && this.websocket.readyState == 1) {
-			this.websocket.send(JSON.stringify({ command: command, arguments: args }))
+			const sendStr = JSON.stringify({ command: command, arguments: args })
+			streamDeck.logger.debug(`send: ${sendStr}`)
+			this.websocket.send(sendStr)
 		} else {
 			console.warn('Could not send ' + command + ' when not connected')
 		}
@@ -111,6 +114,7 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 		}
 
 		websocket.onmessage = (evt) => {
+			streamDeck.logger.trace(`receive ${evt.data}`)
 			if (evt.data) {
 				try {
 					const data = JSON.parse(evt.data)
@@ -121,7 +125,7 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 						this.emit(data.command, data.arguments)
 					}
 				} catch (e) {
-					console.warn('Cannot parse wsapi packet:', evt.data, e)
+					streamDeck.logger.warn(`Cannot parse wsapi packet: ${evt.data}`, e)
 				}
 			}
 			//console.log("Got message: ", evt);
