@@ -87,7 +87,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		const page = settings.page
 		const bank = combineBankNumber(settings.row, settings.column)
 
-		console.log(name, settings.dynamicPage, page, bank)
+		console.log(settings.dynamicPage, page, bank)
 		if (connection.supportsCoordinates) {
 			return {
 				page: settings.dynamicPage ? settings.page : null,
@@ -174,9 +174,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			existing.cachedImage = imageUrl
 
 			for (const [actionItemId, actionItem] of existing.listeners.entries()) {
-				this.#drawImage(actionItem.action, imageUrl).catch(() => {
-					// TODO
-				})
+				this.#drawImage(actionItem.action, imageUrl)
 			}
 		} else if (buttonSettings.dynamicPage) {
 			this.#keyImageListeners.set(keyId, {
@@ -200,9 +198,13 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		}
 	}
 
-	async #drawImage(action: Action<CompanionButtonSettings>, image: string) {
-		await action.setImage(image)
-		await action.setFeedback({ canvas: image })
+	#drawImage(action: Action<CompanionButtonSettings>, image: string) {
+		action
+			.setImage(image)
+			.then(() => action.setFeedback({ canvas: image }))
+			.catch((e) => {
+				streamDeck.logger.error(`Draw image failed ${e}`)
+			})
 	}
 
 	#subscribeAction(action: Action<CompanionButtonSettings>, settings: CompanionButtonSettings) {
@@ -216,9 +218,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 			// Draw cached image
 			if (existing.cachedImage) {
-				this.#drawImage(action, existing.cachedImage).catch(() => {
-					// TODO
-				})
+				this.#drawImage(action, existing.cachedImage)
 			}
 		} else {
 			const newListeners: KeyImageCache = {

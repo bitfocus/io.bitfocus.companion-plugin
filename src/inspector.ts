@@ -47,14 +47,18 @@ streamDeck.onDidConnect((a, b) => {
 		newSettings.dynamicPage = newState
 		updateUiVisibility(newSettings)
 
-		streamDeck.settings.setSettings(newSettings) // TODO - handle promise
+		streamDeck.settings.setSettings(newSettings).catch((e) => {
+			streamDeck.logger.warn(`Failed to save settings: ${e}`)
+		})
 	}
 	pageField.onchange = () => {
 		const newPage = Number(pageField.value)
 		if (isNaN(newPage)) return
 
 		newSettings.page = newPage
-		streamDeck.settings.setSettings(newSettings) // TODO - handle promise
+		streamDeck.settings.setSettings(newSettings).catch((e) => {
+			streamDeck.logger.warn(`Failed to save settings: ${e}`)
+		})
 	}
 	// dynamicPositionField.onchange = () => {
 	// 	const newState = !!dynamicPositionField.checked
@@ -62,21 +66,27 @@ streamDeck.onDidConnect((a, b) => {
 	// 	newSettings.dynamicPosition = newState
 	// 	updateUiVisibility(newSettings)
 
-	// 	streamDeck.settings.setSettings(newSettings) // TODO - handle promise
+	// 	streamDeck.settings.setSettings(newSettings) .catch(e => {
+	// 	streamDeck.logger.warn(`Failed to save settings: ${e}`)
+	// })
 	// }
 	rowField.onchange = () => {
 		const newRow = Number(rowField.value)
 		if (isNaN(newRow)) return
 
 		newSettings.row = newRow
-		streamDeck.settings.setSettings(newSettings) // TODO - handle promise
+		streamDeck.settings.setSettings(newSettings).catch((e) => {
+			streamDeck.logger.warn(`Failed to save settings: ${e}`)
+		})
 	}
 	columnField.onchange = () => {
 		const newColumn = Number(columnField.value)
 		if (isNaN(newColumn)) return
 
 		newSettings.column = newColumn
-		streamDeck.settings.setSettings(newSettings) // TODO - handle promise
+		streamDeck.settings.setSettings(newSettings).catch((e) => {
+			streamDeck.logger.warn(`Failed to save settings: ${e}`)
+		})
 	}
 })
 
