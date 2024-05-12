@@ -1,20 +1,3 @@
-/*
- * This file is part of the Companion project
- * Copyright (c) 2019 Bitfocus AS
- * Authors: Håkon Nessjøen <haakon@bitfocus.io>, William Viker <william@bitfocus.io>
- *
- * This program is free software.
- * You should have received a copy of the MIT licence as well as the Bitfocus
- * Individual Contributor License Agreement for companion along with
- * this program.
- *
- * You can be released from the requirements of the license by purchasing
- * a commercial license. Buying such a license is mandatory as soon as you
- * develop commercial activities involving the Companion software without
- * disclosing the source code of your own applications.
- *
- */
-
 import streamDeck from '@elgato/streamdeck'
 import EventEmitter from 'eventemitter3'
 import { WebSocket } from 'ws'
