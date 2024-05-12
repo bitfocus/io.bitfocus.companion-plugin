@@ -21,6 +21,32 @@ function updateUiVisibility(settings: any) {
 	// columnFieldWrapper.style.display = settings.dynamicPosition ? 'none' : ''
 }
 
+streamDeck.plugin.registerRoute('/connection-status', (req, res) => {
+	const el = document.getElementById('companion_connect')
+	if (!el) return
+
+	if (req.body.message) {
+		el.style.display = 'block'
+
+		switch (req.body.message) {
+			case 'wrongversion':
+				el.innerHTML =
+					'<summary>Incompatible Companion version...</summary>' + '<p>You need to install Companion 2.4 or newer</p>'
+				break
+			case 'disconnected':
+				el.innerHTML =
+					'<summary>Connecting to Companion...</summary>' +
+					'<p>Make sure you have at least Companion version 2.4.0 or newer running on the same machine and that you have enabled support for the Elgato Plugin in the Settings</p>'
+				break
+			default:
+				el.innerHTML = '<summary>Unknown error: ' + req.body.message + '</summary>'
+				break
+		}
+	} else {
+		el.style.display = 'none'
+	}
+})
+
 console.log('inspector here')
 streamDeck.onDidConnect((a, b) => {
 	console.log('connect', a, b)

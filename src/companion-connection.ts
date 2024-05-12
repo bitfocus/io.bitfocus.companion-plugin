@@ -85,6 +85,7 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 	address: string
 
 	public isConnected = false
+	public errorMessage: 'wrongversion' | null = null
 	public supportsCoordinates = true // TODO - this doesn't make sense to reside here
 
 	private remote_version: number | null = null
@@ -141,10 +142,12 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 
 				if (this.remote_version === 1) {
 					console.log('old version')
+					this.errorMessage = 'wrongversion'
 					this.emit('wrongversion')
 					websocket.close()
 				} else {
 					console.log('connected')
+					this.errorMessage = null
 					this.emit('connected')
 				}
 			})
@@ -160,6 +163,7 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 			console.log('[COMPANION]***** WEBOCKET CLOSED **** reason:', evt.code)
 
 			this.isConnected = false
+			this.errorMessage = null
 			this.emit('disconnect')
 		}
 

@@ -8,6 +8,8 @@ import streamDeck, {
 	DidReceiveSettingsEvent,
 	KeyDownEvent,
 	KeyUpEvent,
+	PropertyInspectorDidAppearEvent,
+	PropertyInspectorDidDisappearEvent,
 	SingletonAction,
 	TitleParametersDidChangeEvent,
 	WillAppearEvent,
@@ -82,6 +84,10 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		if (actionItem) {
 			this.#unsubscribeAction(ev.action, actionItem.settings)
 		}
+	}
+
+	async onPropertyInspectorDidAppear(ev: PropertyInspectorDidAppearEvent<CompanionButtonSettings>): Promise<void> {
+		this.#propertyInspectorConnectionStatus()
 	}
 
 	#buttonEventProps(settings: CompanionButtonSettings): CompanionKeyAction | null {
@@ -204,6 +210,25 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		for (const actionItem of this.#actionItems.values()) {
 			this.#drawImage(actionItem.action, connection.isConnected ? imageLoading : imageNotConnected)
 		}
+
+		this.#propertyInspectorConnectionStatus()
+	}
+
+	#propertyInspectorConnectionStatus() {
+		if (!streamDeck.ui.current) return
+
+		let errorMessage: string | null = connection.errorMessage
+		if (!errorMessage && !connection.isConnected) {
+			errorMessage = 'disconnected'
+		}
+
+		streamDeck.ui.current
+			.fetch('/connection-status', {
+				message: errorMessage,
+			})
+			.catch((e) => {
+				streamDeck.logger.warn(`Failed to send connection status to inspector: ${e}`)
+			})
 	}
 
 	#drawImage(action: Action<CompanionButtonSettings>, image: string) {

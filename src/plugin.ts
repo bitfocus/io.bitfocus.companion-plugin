@@ -16,11 +16,8 @@ streamDeck.connect()
 
 connection.on('wrongversion', () => {
 	streamDeck.logger.info('wrong version')
-	// 	for (let ctx in actionItems) {
-	// 	  errorstate =
-	// 		"You need to install Companion 2.4 or newer and enable support for this plugin in the Settings tab";
-	// 	  sendConnectionState(ctx);
-	// 	}
+
+	mainAction.connectionStateChange()
 })
 
 connection.on('connected', () => {
@@ -38,9 +35,6 @@ connection.on('connected', () => {
 
 		mainAction.subscribeAll()
 	})
-	// 	for (let actionItemId in actionItems) {
-	// 	  sendConnectionState(actionItemId);
-	// 	}
 })
 
 connection.on('fillImage', (data) => {
@@ -59,14 +53,9 @@ connection.on('disconnect', () => {
 	streamDeck.logger.info('disconneced')
 
 	mainAction.connectionStateChange()
-
-	// 	for (let actionItemId in actionItems) {
-	// 	  sendConnectionState(actionItemId);
-	// 	}
-	// 	errorstate = undefined;
 })
 
 // connection.setAddress('10.42.13.140')
-connection.setAddress('100.116.211.104')
+// connection.setAddress('100.116.211.104')
 // connection.setAddress('companion.ct.julus.uk')
 connection.connect()
