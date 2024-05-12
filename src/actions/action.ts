@@ -268,7 +268,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 		existing.listeners.delete(action.id)
 
-		if (existing.listeners.size === 0 && !settings.dynamicPage) {
+		if (existing.listeners.size === 0 && (!settings.dynamicPage || connection.supportsCoordinates)) {
 			if (connection.isConnected) {
 				const bankNumber = combineBankNumber(settings.row, settings.column)
 				if (connection.supportsCoordinates) {
@@ -278,7 +278,9 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 				}
 			}
 
-			this.#keyImageListeners.delete(keyId)
+			if (!settings.dynamicPage) {
+				this.#keyImageListeners.delete(keyId)
+			}
 		}
 	}
 }
