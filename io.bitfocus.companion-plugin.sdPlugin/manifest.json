@@ -1,6 +1,6 @@
 {
 	"Name": "Companion Plugin",
-	"Version": "3.0.0",
+	"Version": "3.0.0.0",
 	"Author": "Bitfocus AS",
 	"Actions": [
 		{
@@ -8,7 +8,10 @@
 			"UUID": "io.bitfocus.companion-plugin.action",
 			"Icon": "img/actionIcon",
 			"Tooltip": "Control anything in companion",
-			"Controllers": ["Keypad", "Encoder"],
+			"Controllers": [
+				"Keypad",
+				"Encoder"
+			],
 			"Encoder": {
 				"layout": "encoderLayout.json"
 			},
@@ -48,20 +51,20 @@
 	"UUID": "io.bitfocus.companion-plugin",
 	"Profiles": [
 		{
-		  "Name": "profiles/companion.streamDeckProfile",
-		  "DeviceType": 0
+			"Name": "profiles/companion",
+			"DeviceType": 0
 		},
 		{
-		  "Name": "profiles/companionMini.streamDeckProfile",
-		  "DeviceType": 1
+			"Name": "profiles/companionMini",
+			"DeviceType": 1
 		},
 		{
-		  "Name": "profiles/companionXL.streamDeckProfile",
-		  "DeviceType": 2
+			"Name": "profiles/companionXL",
+			"DeviceType": 2
 		},
 		{
-		  "Name": "profiles/companionPlus.streamDeckProfile",
-		  "DeviceType": 7
+			"Name": "profiles/companionPlus",
+			"DeviceType": 7
 		}
-	  ]
+	]
 }

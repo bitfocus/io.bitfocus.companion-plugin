@@ -2,7 +2,8 @@
 	"scripts": {
 		"build": "rollup -c",
 		"watch": "rollup -c -w --watch.onEnd=\"streamdeck restart io.bitfocus.companion-plugin\"",
-		"link": "streamdeck link io.bitfocus.companion-plugin.sdPlugin"
+		"link": "streamdeck link io.bitfocus.companion-plugin.sdPlugin",
+		"pack": "streamdeck pack io.bitfocus.companion-plugin.sdPlugin"
 	},
 	"type": "module",
 	"devDependencies": {
