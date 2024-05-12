@@ -17,7 +17,7 @@ import streamDeck, {
 import imageNotConnected from '../img/actionNotConnected.png'
 import imageLoading from '../img/loadingIcon.png'
 
-import { connection, FillImageMessage } from '../companion-connection'
+import { CompanionConnectionMessages, CompanionKeyAction, connection, FillImageMessage } from '../companion-connection'
 import { combineBankNumber, dataToImageUrl, extractRowAndColumn } from '../util'
 
 interface KeyImageCache {
@@ -83,39 +83,55 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		}
 	}
 
-	async #sendButtonEvent(name: string, settings: CompanionButtonSettings, extraProps?: Record<string, any>) {
+	#buttonEventProps(settings: CompanionButtonSettings): CompanionKeyAction | null {
 		const page = settings.page
 		const bank = combineBankNumber(settings.row, settings.column)
 
 		console.log(name, settings.dynamicPage, page, bank)
 		if (connection.supportsCoordinates) {
-			connection.apicommand('keydown', {
+			return {
 				page: settings.dynamicPage ? settings.page : null,
 				row: settings.row,
 				column: settings.column,
-				...extraProps,
-			})
+			}
 		} else if (settings.dynamicPage && bank != null) {
-			connection.apicommand(name, { keyIndex: bank, ...extraProps })
+			return { keyIndex: bank }
 		} else if (bank != null) {
-			connection.apicommand(name, { page, bank, ...extraProps })
+			return { page, bank }
+		} else {
+			return null
 		}
 	}
 
 	async onKeyDown(ev: KeyDownEvent<CompanionButtonSettings>): Promise<void> {
-		await this.#sendButtonEvent('keydown', ev.payload.settings)
+		const props = this.#buttonEventProps(ev.payload.settings)
+		if (!props) return
+
+		connection.apicommand('keydown', props)
 	}
 	async onKeyUp(ev: KeyUpEvent<CompanionButtonSettings>): Promise<void> {
-		await this.#sendButtonEvent('keyup', ev.payload.settings)
+		const props = this.#buttonEventProps(ev.payload.settings)
+		if (!props) return
+
+		connection.apicommand('keyup', props)
 	}
 	async onDialRotate(ev: DialRotateEvent<CompanionButtonSettings>): Promise<void> {
-		await this.#sendButtonEvent('rotate', ev.payload.settings, { ticks: ev.payload.ticks })
+		const props = this.#buttonEventProps(ev.payload.settings)
+		if (!props) return
+
+		connection.apicommand('rotate', { ...props, ticks: ev.payload.ticks })
 	}
 	async onDialDown(ev: DialDownEvent<CompanionButtonSettings>): Promise<void> {
-		await this.#sendButtonEvent('keydown', ev.payload.settings)
+		const props = this.#buttonEventProps(ev.payload.settings)
+		if (!props) return
+
+		connection.apicommand('keydown', props)
 	}
 	async onDialUp(ev: DialUpEvent<CompanionButtonSettings>): Promise<void> {
-		await this.#sendButtonEvent('keyup', ev.payload.settings)
+		const props = this.#buttonEventProps(ev.payload.settings)
+		if (!props) return
+
+		connection.apicommand('keyup', props)
 	}
 
 	async onDidReceiveSettings(ev: DidReceiveSettingsEvent<CompanionButtonSettings>): Promise<void> {

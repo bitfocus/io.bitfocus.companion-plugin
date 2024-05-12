@@ -27,29 +27,75 @@ export type FillImageMessage = {
 	column: number | undefined
 } & ({ png: true; data: string } | { png: undefined; data: { data: number[] } })
 
+export type CompanionKeyAction =
+	| {
+			// Coordinates based
+			page: number | null // null means dynamic
+			row: number
+			column: number
+	  }
+	| {
+			// Old specific button
+			page: number
+			bank: number
+	  }
+	| {
+			// Old dynamic button
+			keyIndex: number
+	  }
+
+export type CompanionRequestMessage =
+	| {
+			// Coordinates format
+			page: number
+			row: number
+			column: number
+	  }
+	| {
+			// Old format
+			page: number
+			bank: number
+	  }
+
 interface CompanionConnectionEvents {
 	connected: []
 	disconnect: []
 	wrongversion: []
 	fillImage: [data: FillImageMessage]
+
+	'version:result': [arg: { error?: string; version: number }]
+	'new_device:result': [arg: never]
+}
+export interface CompanionConnectionMessages {
+	version: { version: 2 }
+	new_device: string | { id: string; supportsPng?: boolean }
+
+	keydown: CompanionKeyAction
+	keyup: CompanionKeyAction
+	rotate: CompanionKeyAction & { ticks: number }
+
+	request_button: CompanionRequestMessage
+	unrequest_button: CompanionRequestMessage
 }
 
 class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
-	websocket: WebSocket | undefined
+	#websocket: WebSocket | undefined
 
-	address: string | undefined
+	address: string
 
-	isConnected = false
-	supportsCoordinates = false // TODO - support this
+	public isConnected = false
+	public supportsCoordinates = false // TODO - support this
+
+	private remote_version: number | null = null
 
 	constructor(address?: string) {
 		super()
 
-		this.address = address
+		this.address = address || '127.0.0.1'
 		this.isConnected = false
 
 		/* this.timer = */ setInterval(() => {
-			if (!this.websocket || !this.isConnected) {
+			if (!this.#websocket || !this.isConnected) {
 				console.log('Not connected?')
 				this.connect()
 			}
@@ -65,18 +111,20 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 			this.connect()
 		}
 	}
-	apicommand(command, args) {
-		if (this.websocket && this.websocket.readyState == 1) {
+
+	apicommand<T extends keyof CompanionConnectionMessages>(command: T, args: CompanionConnectionMessages[T]) {
+		if (this.#websocket && this.#websocket.readyState == 1) {
 			const sendStr = JSON.stringify({ command: command, arguments: args })
 			streamDeck.logger.debug(`send: ${sendStr}`)
-			this.websocket.send(sendStr)
+			this.#websocket.send(sendStr)
 		} else {
 			console.warn('Could not send ' + command + ' when not connected')
 		}
 	}
+
 	connect() {
 		console.log('cc: connect')
-		const websocket = (this.websocket = new WebSocket('ws://' + this.address + ':28492'))
+		const websocket = (this.#websocket = new WebSocket('ws://' + this.address + ':28492'))
 
 		websocket.onopen = () => {
 			this.isConnected = true
@@ -85,6 +133,7 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 			this.once('version:result', (args) => {
 				if (args.error) {
 					console.warn('Error connecting: ', args)
+					return
 				}
 				this.remote_version = args.version
 				console.log('Version result:', args)
@@ -117,9 +166,9 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 			streamDeck.logger.trace(`receive ${evt.data}`)
 			if (evt.data) {
 				try {
-					const data = JSON.parse(evt.data)
+					const data = JSON.parse(evt.data.toString())
 					if (data.response !== undefined) {
-						this.emit(data.response + ':result', data.arguments)
+						this.emit(`${data.response}:result` as any, data.arguments)
 						console.log('Emitting response: ' + data.response)
 					} else {
 						this.emit(data.command, data.arguments)
