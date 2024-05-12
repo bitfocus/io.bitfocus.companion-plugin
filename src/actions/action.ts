@@ -50,6 +50,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			...(ev.payload.settings as Partial<CompanionButtonSettings>),
 		}
 
+		// Upgrade old buttons
 		const oldPageSelector = (ev.payload.settings as any).pageselector
 		delete (ev.payload.settings as any).pageselector
 		if (oldPageSelector === 'dynamic') {
@@ -90,7 +91,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		console.log(settings.dynamicPage, page, bank)
 		if (connection.supportsCoordinates) {
 			return {
-				page: settings.dynamicPage ? settings.page : null,
+				page: settings.dynamicPage ? null : settings.page,
 				row: settings.row,
 				column: settings.column,
 			}
@@ -185,6 +186,13 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		}
 	}
 
+	clearAllDynamicKeys() {
+		for (const actionItem of this.#actionItems.values()) {
+			if (!actionItem.settings.dynamicPage) continue
+			this.#drawImage(actionItem.action, connection.isConnected ? imageLoading : imageNotConnected)
+		}
+	}
+
 	subscribeAll() {
 		if (!connection.isConnected) return
 
@@ -234,13 +242,17 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		}
 	}
 	#sendSubscribeForSettings(settings: CompanionButtonSettings) {
-		if (settings.dynamicPage) return
+		if (settings.dynamicPage && !connection.supportsCoordinates) return
 
 		if (connection.isConnected) {
 			const bankNumber = combineBankNumber(settings.row, settings.column)
 			streamDeck.logger.debug(`send subscribe: ${JSON.stringify(settings)} ${bankNumber}`)
 			if (connection.supportsCoordinates) {
-				connection.apicommand('request_button', { page: settings.page, row: settings.row, column: settings.column })
+				connection.apicommand('request_button', {
+					page: settings.dynamicPage ? null : settings.page,
+					row: settings.row,
+					column: settings.column,
+				})
 			} else if (bankNumber !== null) {
 				connection.apicommand('request_button', { page: settings.page, bank: bankNumber })
 			}

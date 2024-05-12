@@ -47,7 +47,7 @@ export type CompanionKeyAction =
 export type CompanionRequestMessage =
 	| {
 			// Coordinates format
-			page: number
+			page: number | null
 			row: number
 			column: number
 	  }
@@ -62,13 +62,14 @@ interface CompanionConnectionEvents {
 	disconnect: []
 	wrongversion: []
 	fillImage: [data: FillImageMessage]
+	clearAllKeys: []
 
 	'version:result': [arg: { error?: string; version: number }]
-	'new_device:result': [arg: never]
+	'new_device:result': [arg: { supportsPng?: boolean; supportsCoordinates?: boolean }]
 }
 export interface CompanionConnectionMessages {
 	version: { version: 2 }
-	new_device: string | { id: string; supportsPng?: boolean }
+	new_device: string | { id: string; supportsPng?: boolean; supportsCoordinates?: boolean }
 
 	keydown: CompanionKeyAction
 	keyup: CompanionKeyAction
@@ -84,7 +85,7 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 	address: string
 
 	public isConnected = false
-	public supportsCoordinates = false // TODO - support this
+	public supportsCoordinates = true // TODO - this doesn't make sense to reside here
 
 	private remote_version: number | null = null
 
