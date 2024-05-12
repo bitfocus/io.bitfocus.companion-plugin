@@ -55,7 +55,4 @@ connection.on('disconnect', () => {
 	mainAction.connectionStateChange()
 })
 
-// connection.setAddress('10.42.13.140')
-// connection.setAddress('100.116.211.104')
-// connection.setAddress('companion.ct.julus.uk')
 connection.connect()
