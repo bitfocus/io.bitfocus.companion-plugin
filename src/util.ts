@@ -33,6 +33,13 @@ export function combineBankNumber(row: number, column: number): number | null {
 	return row * 8 + column
 }
 
+export function bankIndexToRowAndColumn(bankOrIndex: number): { row: number; column: number } {
+	const row = Math.floor(bankOrIndex / 8)
+	const column = bankOrIndex % 8
+
+	return { row, column }
+}
+
 export function extractRowAndColumn(props: FillImageMessage): { row: number; column: number } | null {
 	if (props.column != null && props.row != null) {
 		return { row: props.row, column: props.column }
@@ -40,10 +47,7 @@ export function extractRowAndColumn(props: FillImageMessage): { row: number; col
 
 	const bankOrIndex = props.bank || props.keyIndex
 	if (bankOrIndex != null) {
-		const row = Math.floor(bankOrIndex / 8)
-		const column = bankOrIndex % 8
-
-		return { row, column }
+		return bankIndexToRowAndColumn(bankOrIndex)
 	}
 
 	return null

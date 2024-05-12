@@ -20,7 +20,7 @@ import imageNotConnected from '../img/actionNotConnected.png'
 import imageLoading from '../img/loadingIcon.png'
 
 import { CompanionConnectionMessages, CompanionKeyAction, connection, FillImageMessage } from '../companion-connection'
-import { combineBankNumber, dataToImageUrl, extractRowAndColumn } from '../util'
+import { bankIndexToRowAndColumn, combineBankNumber, dataToImageUrl, extractRowAndColumn } from '../util'
 
 interface KeyImageCache {
 	listeners: Map<string, { action: Action<CompanionButtonSettings> }>
@@ -62,10 +62,12 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			ev.payload.settings.page = Number(oldPageSelector) || ev.payload.settings.page
 			ev.payload.settings.dynamicPage = false
 		}
-		const oldBankSelector = (ev.payload.settings as any).bankselector
-		delete (ev.payload.settings as any).bankselector
-		if (oldBankSelector) {
-			// TODO
+		const oldButtonSelector = (ev.payload.settings as any).buttonselector
+		delete (ev.payload.settings as any).buttonselector
+		if (typeof oldButtonSelector === 'string') {
+			const coordinates = oldButtonSelector.split(/:/)
+			ev.payload.settings.row = Number(coordinates[1]) - 1
+			ev.payload.settings.column = Number(coordinates[0]) - 1
 		}
 
 		await ev.action.setSettings(ev.payload.settings)
