@@ -145,8 +145,11 @@ $SD.on("io.bitfocus.companion-plugin.action.keyDown", (jsonObj) =>
 $SD.on("io.bitfocus.companion-plugin.action.dialRotate", (jsonObj) =>
   action.onDialRotate(jsonObj)
 );
-$SD.on("io.bitfocus.companion-plugin.action.dialPress", (jsonObj) =>
-  action.onDialPress(jsonObj)
+$SD.on("io.bitfocus.companion-plugin.action.dialDown", (jsonObj) =>
+  action.onDialDown(jsonObj)
+);
+$SD.on("io.bitfocus.companion-plugin.action.dialUp", (jsonObj) =>
+  action.onDialUp(jsonObj)
 );
 $SD.on("io.bitfocus.companion-plugin.action.sendToPlugin", (jsonObj) =>
   action.onSendToPlugin(jsonObj)
@@ -511,18 +514,29 @@ const action = {
     }
   },
   
-  onDialPress: function (jsn) {
+  onDialDown: function (jsn) {
     const page = jsn.payload.settings.pageselector;
     const [x, y] = jsn.payload.settings.buttonselector.split(/:/);
     const bank = x - 1 + (y - 1) * 8;
 
-    const event = jsn.payload.pressed ? 'keydown' : 'keyup'
-
-    console.log('pressed', page, bank, jsn.payload.pressed)
+    console.log('dial down', page, bank)
     if (page === "dynamic") {
-      companionClient.apicommand(event, { keyIndex: bank });
+      companionClient.apicommand('keydown', { keyIndex: bank });
     } else {
-      companionClient.apicommand(event, { page, bank });
+      companionClient.apicommand('keydown', { page, bank });
+    }
+  },
+  
+  onDialUp: function (jsn) {
+    const page = jsn.payload.settings.pageselector;
+    const [x, y] = jsn.payload.settings.buttonselector.split(/:/);
+    const bank = x - 1 + (y - 1) * 8;
+
+    console.log('dial up', page, bank)
+    if (page === "dynamic") {
+      companionClient.apicommand('keyup', { keyIndex: bank });
+    } else {
+      companionClient.apicommand('keyup', { page, bank });
     }
   },
 
