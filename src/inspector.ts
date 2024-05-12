@@ -1,7 +1,5 @@
 import streamDeck from '@elgato/streamdeck'
 
-// import './css/sdpi.css'
-
 // We can enable "trace" logging so that all messages between the Stream Deck, and the plugin are recorded. When storing sensitive information
 // streamDeck.logger.setLevel(LogLevel.TRACE)
 
@@ -115,15 +113,3 @@ streamDeck.onDidConnect((a, b) => {
 		})
 	}
 })
-
-// streamDeck.settings.onDidReceiveSettings()
-
-// streamDeck.ui.onDidAppear((e) => {
-// 	streamDeck.logger.debug('appear', e)
-// })
-// streamDeck.ui.onDidDisappear((e) => {
-// 	streamDeck.logger.debug('disappear', e)
-// })
-
-// // Finally, connect to the Stream Deck.
-// streamDeck.connect()
