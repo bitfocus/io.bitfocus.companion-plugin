@@ -20,7 +20,7 @@
 			]
 		}
 	],
-	"Category": "Companion",
+	"Category": "Bitfocus Companion Plugin",
 	"CategoryIcon": "img/pluginIcon",
 	"CodePath": "bin/plugin.js",
 	"PropertyInspectorPath": "propertyinspector.html",
