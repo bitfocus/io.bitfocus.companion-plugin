@@ -65,6 +65,14 @@
 		{
 			"Name": "profiles/companionPlus",
 			"DeviceType": 7
+		},
+		{
+			"Name": "profiles/companionNeo",
+			"DeviceType": 9
+		},
+		{
+			"Name": "profiles/companionStudio",
+			"DeviceType": 10
 		}
 	]
 }
