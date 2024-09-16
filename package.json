@@ -7,25 +7,25 @@
 	},
 	"type": "module",
 	"devDependencies": {
-		"@elgato/cli": "^0.3.0",
-		"@rollup/plugin-commonjs": "^25.0.5",
+		"@elgato/cli": "^0.3.2",
+		"@rollup/plugin-commonjs": "^25.0.8",
 		"@rollup/plugin-image": "^3.0.3",
 		"@rollup/plugin-node-resolve": "^15.2.2",
 		"@rollup/plugin-terser": "^0.4.4",
 		"@rollup/plugin-typescript": "^11.1.5",
 		"@tsconfig/node20": "^20.1.2",
-		"@types/node": "^20.12.11",
+		"@types/node": "^20.16.5",
 		"@types/pngjs": "^6.0.5",
-		"@types/ws": "^8.5.10",
-		"rollup": "^4.17.2",
-		"tslib": "^2.6.2",
+		"@types/ws": "^8.5.12",
+		"rollup": "^4.21.3",
+		"tslib": "^2.7.0",
 		"typescript": "~5.4.5"
 	},
 	"dependencies": {
 		"@elgato/streamdeck": "0.4.0-beta.1",
 		"eventemitter3": "^5.0.1",
 		"pngjs": "^7.0.0",
-		"prettier": "^3.2.5",
-		"ws": "^8.17.1"
+		"prettier": "^3.3.3",
+		"ws": "^8.18.0"
 	}
 }
