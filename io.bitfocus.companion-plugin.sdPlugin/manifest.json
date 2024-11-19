@@ -1,10 +1,10 @@
 {
 	"Name": "Companion Plugin",
-	"Version": "3.1.0.0",
+	"Version": "3.2.0.0",
 	"Author": "Bitfocus AS",
 	"Actions": [
 		{
-			"Name": "Companion button",
+			"Name": "Companion Button",
 			"UUID": "io.bitfocus.companion-plugin.action",
 			"Icon": "img/actionIcon",
 			"Tooltip": "Control anything in companion",
@@ -27,7 +27,7 @@
 	"CategoryIcon": "img/pluginIcon",
 	"CodePath": "bin/plugin.js",
 	"PropertyInspectorPath": "propertyinspector.html",
-	"Description": "This lets you control instances in Companion. You need to install Companion 2.4 or newer from https://bitfocus.io/companion/ first, and enable support for this plugin in the Settings tab to be able to use this plugin.",
+	"Description": "This lets you control instances in Companion. You need to install Companion 2.4 or newer from https://bitfocus.io/companion/ first, and enable support for this plugin in the Companion Settings tab to be able to use this plugin.",
 	"Icon": "img/pluginIcon",
 	"URL": "https://bitfocus.io/companion/",
 	"SDKVersion": 2,
@@ -70,9 +70,5 @@
 			"Name": "profiles/companionNeo",
 			"DeviceType": 9
 		},
-		{
-			"Name": "profiles/companionStudio",
-			"DeviceType": 10
-		}
 	]
 }
