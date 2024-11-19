@@ -8,10 +8,7 @@
 			"UUID": "io.bitfocus.companion-plugin.action",
 			"Icon": "img/actionIcon",
 			"Tooltip": "Control anything in companion",
-			"Controllers": [
-				"Keypad",
-				"Encoder"
-			],
+			"Controllers": ["Keypad", "Encoder"],
 			"Encoder": {
 				"layout": "encoderLayout.json"
 			},
@@ -69,6 +66,6 @@
 		{
 			"Name": "profiles/companionNeo",
 			"DeviceType": 9
-		},
+		}
 	]
 }
