@@ -66,6 +66,7 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 	#websocket: WebSocket | undefined
 
 	address: string
+	port: number
 
 	public isConnected = false
 	public errorMessage: 'wrongversion' | null = null
@@ -73,10 +74,12 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 
 	private remote_version: number | null = null
 
-	constructor(address?: string) {
+	constructor(address?: string, port?: number) {
 		super()
 
 		this.address = address || '127.0.0.1'
+		this.port = port || 28492
+
 		this.isConnected = false
 
 		/* this.timer = */ setInterval(() => {
@@ -97,6 +100,16 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 		}
 	}
 
+	setPort(port: number): void {
+		console.log('cc: setPort', port)
+
+		this.port = port
+
+		if (this.isConnected) {
+			this.connect()
+		}
+	}
+
 	apicommand<T extends keyof CompanionConnectionMessages>(command: T, args: CompanionConnectionMessages[T]) {
 		if (this.#websocket && this.#websocket.readyState == 1) {
 			const sendStr = JSON.stringify({ command: command, arguments: args })
@@ -109,7 +122,7 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 
 	connect() {
 		console.log('cc: connect')
-		const websocket = (this.#websocket = new WebSocket('ws://' + this.address + ':28492'))
+		const websocket = (this.#websocket = new WebSocket('ws://' + this.address + ':' + this.port))
 
 		websocket.onopen = () => {
 			this.isConnected = true
@@ -138,12 +151,12 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 
 		websocket.onerror = (evt) => {
 			// @ts-ignore
-			console.warn('WEBOCKET ERROR', evt, evt.data)
+			console.warn('WEBSOCKET ERROR', evt, evt.data)
 		}
 
 		websocket.onclose = (evt) => {
 			// Websocket is closed
-			console.log('[COMPANION]***** WEBOCKET CLOSED **** reason:', evt.code)
+			console.log('[COMPANION]***** WEBSOCKET CLOSED **** reason:', evt.code)
 
 			this.isConnected = false
 			this.errorMessage = null
@@ -170,4 +183,5 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 	}
 }
 
+//export { CompanionConnection }
 export const connection = new CompanionConnection()
