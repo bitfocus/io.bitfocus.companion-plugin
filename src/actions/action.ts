@@ -1,13 +1,16 @@
 import streamDeck, {
 	Action,
 	action,
-	ActionEvent,
+	//ActionEvent,
+	DialAction,
 	DialDownEvent,
 	DialRotateEvent,
 	DialUpEvent,
 	DidReceiveSettingsEvent,
+	KeyAction,
 	KeyDownEvent,
 	KeyUpEvent,
+	LogLevel,
 	PropertyInspectorDidAppearEvent,
 	PropertyInspectorDidDisappearEvent,
 	SingletonAction,
@@ -36,17 +39,12 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	#keyImageListeners = new Map<string, KeyImageCache>()
 	#actionItems = new Map<string, { action: Action<CompanionButtonSettings>; settings: CompanionButtonSettings }>()
 
-	/**
-	 * The {@link SingletonAction.onWillAppear} event is useful for setting the visual representation of an action when it become visible. This could be due to the Stream Deck first
-	 * starting up, or the user navigating between pages / folders etc.. There is also an inverse of this event in the form of {@link streamDeck.client.onWillDisappear}. In this example,
-	 * we're setting the title to the "count" that is incremented in {@link CompanionButtonAction.onKeyDown}.
-	 */
-	async onWillAppear(ev: WillAppearEvent<CompanionButtonSettings>): Promise<void> {
+	override async onWillAppear(ev: WillAppearEvent<CompanionButtonSettings>): Promise<void> {
+		streamDeck.logger.debug(`onWillAppear ${JSON.stringify(ev)}`)
 		// ensure defaults are populated
 		ev.payload.settings = {
 			dynamicPage: true,
 			page: 1,
-			// dynamicPosition: !ev.payload.settings.page, // default to true only for newly placed actions
 			row: 0,
 			column: 0,
 			...(ev.payload.settings as Partial<CompanionButtonSettings>),
@@ -84,7 +82,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		this.#actionItems.delete(ev.action.id)
 
 		if (actionItem) {
-			this.#unsubscribeAction(ev.action, actionItem.settings)
+			this.#unsubscribeAction(actionItem.action, actionItem.settings)
 		}
 	}
 
@@ -116,37 +114,39 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		const props = this.#buttonEventProps(ev.payload.settings)
 		if (!props) return
 
-		connection.apicommand('keydown', props)
+		connection.apiCommand('keydown', props)
 	}
 	async onKeyUp(ev: KeyUpEvent<CompanionButtonSettings>): Promise<void> {
 		const props = this.#buttonEventProps(ev.payload.settings)
 		if (!props) return
 
-		connection.apicommand('keyup', props)
+		connection.apiCommand('keyup', props)
 	}
 	async onDialRotate(ev: DialRotateEvent<CompanionButtonSettings>): Promise<void> {
 		const props = this.#buttonEventProps(ev.payload.settings)
 		if (!props) return
 
-		connection.apicommand('rotate', { ...props, ticks: ev.payload.ticks })
+		connection.apiCommand('rotate', { ...props, ticks: ev.payload.ticks })
 	}
 	async onDialDown(ev: DialDownEvent<CompanionButtonSettings>): Promise<void> {
 		const props = this.#buttonEventProps(ev.payload.settings)
 		if (!props) return
 
-		connection.apicommand('keydown', props)
+		connection.apiCommand('keydown', props)
 	}
 	async onDialUp(ev: DialUpEvent<CompanionButtonSettings>): Promise<void> {
 		const props = this.#buttonEventProps(ev.payload.settings)
 		if (!props) return
 
-		connection.apicommand('keyup', props)
+		connection.apiCommand('keyup', props)
 	}
 
-	async onDidReceiveSettings(ev: DidReceiveSettingsEvent<CompanionButtonSettings>): Promise<void> {
-		await ev.action.setTitle('')
+	override async onDidReceiveSettings(ev: DidReceiveSettingsEvent<CompanionButtonSettings>): Promise<void> {
+		//streamDeck.logger.setLevel(LogLevel.TRACE)
 
 		streamDeck.logger.debug(`got settings: ${JSON.stringify(ev)}`)
+
+		await ev.action.setTitle('')
 
 		// unsubscribe old settings
 		const oldActionItem = this.#actionItems.get(ev.action.id)
@@ -180,16 +180,16 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 		const existing = this.#keyImageListeners.get(keyId)
 		if (existing) {
-			existing.cachedImage = imageUrl
+			existing.cachedImage = String(imageUrl)
 
 			for (const [actionItemId, actionItem] of existing.listeners.entries()) {
-				this.#drawImage(actionItem.action, imageUrl)
+				this.#drawImage(actionItem.action, String(imageUrl))
 			}
 		} else if (buttonSettings.dynamicPage) {
 			this.#keyImageListeners.set(keyId, {
 				listeners: new Map(),
 				settings: { ...buttonSettings },
-				cachedImage: imageUrl,
+				cachedImage: String(imageUrl),
 			})
 		}
 	}
@@ -219,27 +219,30 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	#propertyInspectorConnectionStatus() {
 		if (!streamDeck.ui.current) return
 
-		let errorMessage: string | null = connection.errorMessage
-		if (!errorMessage && !connection.isConnected) {
-			errorMessage = 'disconnected'
+		let connectionStatus: string | null = connection.errorMessage
+		if (!connectionStatus && !connection.isConnected) {
+			connectionStatus = 'disconnected'
+		} else if (connection.isConnected) {
+			connectionStatus = 'connected'
 		}
 
-		streamDeck.ui.current
-			.fetch('/connection-status', {
-				message: errorMessage,
-			})
-			.catch((e) => {
-				streamDeck.logger.warn(`Failed to send connection status to inspector: ${e}`)
-			})
+		streamDeck.settings.setGlobalSettings({
+			ip: connection.address,
+			port: connection.port,
+			connectionStatus: connectionStatus,
+		})
 	}
 
 	#drawImage(action: Action<CompanionButtonSettings>, image: string) {
-		action
-			.setImage(image)
-			.then(() => action.setFeedback({ canvas: image }))
-			.catch((e) => {
-				streamDeck.logger.error(`Draw image failed ${e}`)
-			})
+		if (action.isKey()) {
+			let keyAction = action as KeyAction
+			keyAction.setImage(image)
+		} else if (action.isDial()) {
+			let dialAction = action as DialAction
+			dialAction.setFeedback({ canvas: image })
+		} else {
+			streamDeck.logger.error(`Draw image failed`)
+		}
 	}
 
 	#subscribeAction(action: Action<CompanionButtonSettings>, settings: CompanionButtonSettings) {
@@ -275,13 +278,13 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			const bankNumber = combineBankNumber(settings.row, settings.column)
 			streamDeck.logger.debug(`send subscribe: ${JSON.stringify(settings)} ${bankNumber}`)
 			if (connection.supportsCoordinates) {
-				connection.apicommand('request_button', {
+				connection.apiCommand('request_button', {
 					page: settings.dynamicPage ? null : settings.page,
 					row: settings.row,
 					column: settings.column,
 				})
 			} else if (bankNumber !== null) {
-				connection.apicommand('request_button', { page: settings.page, bank: bankNumber })
+				connection.apiCommand('request_button', { page: settings.page, bank: bankNumber })
 			}
 		}
 	}
@@ -299,9 +302,9 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			if (connection.isConnected) {
 				const bankNumber = combineBankNumber(settings.row, settings.column)
 				if (connection.supportsCoordinates) {
-					connection.apicommand('unrequest_button', { page: settings.page, row: settings.row, column: settings.column })
+					connection.apiCommand('unrequest_button', { page: settings.page, row: settings.row, column: settings.column })
 				} else if (bankNumber !== null) {
-					connection.apicommand('unrequest_button', { page: settings.page, bank: bankNumber })
+					connection.apiCommand('unrequest_button', { page: settings.page, bank: bankNumber })
 				}
 			}
 
@@ -324,7 +327,6 @@ function getKeyIdFromSettings(settings: CompanionButtonSettings) {
 type CompanionButtonSettings = {
 	dynamicPage: boolean
 	page: number
-	// dynamicPosition: boolean
 	row: number
 	column: number
 }
