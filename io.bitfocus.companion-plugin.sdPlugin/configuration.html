@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Companion Plugin - General Configuration</title>
+		<meta charset="utf-8" />
+		<link rel="stylesheet" href="css/sdpi.css" />
+		<style>
+			body {
+				background-color: #202020;
+			}
+
+			.sdpi-item {
+				max-width: none;
+				min-height: 26px;
+			}
+
+			.sdpi-item-label {
+				width: 85px;
+			}
+
+			ul ol {
+				max-height: none;
+			}
+
+			li * {
+				min-height: 18px;
+				padding: 4px;
+				display: flex;
+				align-items: center;
+			}
+
+			.title {
+				font-weight: bold;
+				padding-bottom: 2px;
+				margin-bottom: 6px;
+				border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+				text-transform: uppercase;
+			}
+
+			.wrap {
+				margin: 8px;
+			}
+
+			.sdpi-heading {
+				margin: 0 0 8px 0;
+				font-weight: 700;
+				font-size: 10pt;
+			}
+
+			.sdpi-heading::before,
+			.sdpi-heading::after {
+				height: 2px;
+				background-color: #9a9a9a;
+				margin: 0;
+			}
+
+			.sdpi-heading::before {
+				margin-right: 10px;
+			}
+
+			.sdpi-heading::after {
+				margin-left: 10px;
+			}
+
+			.item {
+				display: grid;
+				grid-template-columns: min-content auto;
+				align-items: center;
+				grid-column-gap: 4px;
+			}
+
+			.item .label {
+				width: 55px;
+				text-align: right;
+			}
+
+			.item .label::after {
+				content: ': ';
+			}
+
+			.item .input {
+				min-height: 26px;
+				padding: 0 4px;
+				min-width: 0px;
+			}
+
+			.input {
+				margin-left: 4px;
+			}
+
+			.group-label {
+				text-align: center;
+				margin: 0 0 8px 0;
+				column-gap: 4px;
+			}
+
+			.section {
+				background-color: #2d2d2d;
+				padding: 8px;
+				border-radius: 8px;
+				margin: 8px 0;
+			}
+
+			.header {
+				background-color: #a20110;
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				padding: 6px 15px;
+			}
+
+			.text {
+				color: #efefef;
+				font-size: 11pt;
+				font-weight: 700;
+				text-shadow: 0px 0px 4px #00000080;
+			}
+		</style>
+	</head>
+
+	<body>
+		<div class="header">
+			<div class="text">
+				<img src="./img/pluginIcon.png" style="vertical-align: middle; padding: 5px" />Companion Plugin - General
+				Configuration
+			</div>
+		</div>
+		<div class="wrap">
+			<div class="section">
+				<div class="sdpi-heading">IP/Port Settings</div>
+				<p>
+					The Companion Plugin communicates with Bitfocus Companion via a proprietary websockets protocol.
+					<br /><br />
+					Follow these steps to ensure the plugin can connect to Companion:
+				</p>
+				<p>
+					1. Open Companion's web GUI and go to the "Settings" tab.<br />
+					2. Scroll down to the "Surfaces" section.<br />
+					3. Disable the option, "Enable connected Streamdecks". When disabled, support for the Elgato software Plugin
+					will be enabled (Requires Companion restart). <br /><br />
+					<i
+						>Please note that by disabling this option, Companion will lose the ability to communicate with any locally
+						connected Streamdeck devices on the same computer running Companion as it will assume this Elgato software
+						is in control. Satellite instances will still work fine.</i
+					>
+				</p>
+				<p>Once this has been done, add the Companion server IP here:</p>
+				<div class="group">
+					<div>
+						<div
+							class="item"
+							title="IP Address for Companion. Please provide a valid IP address. If it is running on this same computer, you should use 127.0.0.1."
+						>
+							<div class="label">IP</div>
+							<input
+								class="input"
+								type="text"
+								pattern="\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+								id="ip"
+								style="width: 80px"
+							/>
+						</div>
+						<div
+							class="item"
+							title="Port of Companion Plugin WebSocket server (should not typically need to change this)"
+						>
+							<div class="label">Port</div>
+							<input class="input" type="number" id="port" value="28492" style="width: 35px" />
+						</div>
+						<div class="item">
+							<button id="save" class="sdpi-button">Save</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<script src="js/configuration.js"></script>
+	</body>
+</html>
