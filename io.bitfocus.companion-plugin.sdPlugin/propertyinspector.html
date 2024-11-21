@@ -1,59 +1,49 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
+	<head>
+		<meta charset="utf-8" />
+		<meta
+			name="viewport"
+			content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,minimal-ui,viewport-fit=cover"
+		/>
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black" />
+		<title>io.bitfocus.companion-plugin Property Inspector</title>
+		<link rel="stylesheet" href="css/sdpi.css" />
 
-<head>
-    <meta charset="utf-8" />
-    <meta
-          name="viewport"
-          content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,minimal-ui,viewport-fit=cover" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-	<title>io.bitfocus.companion-plugin Property Inspector</title>
-	<link rel="stylesheet" href="css/sdpi.css">
-
-	<style>
-		.sdpi-item[type="checkbox"]:first-of-type {
-			margin-bottom: -7px;
-			margin-top: -2px;
-		}
-
-		.sdpi-item[type="checkbox"] label {
-			margin-left: 4px;
-		}
-	</style>
-</head>
-<body>
-	<div class="sdpi-wrapper">
-		<div type="checkbox" class="sdpi-item">
-			<div class="sdpi-item-label">Dynamic Page</div>
-			<input class="sdpi-item-value" id="dynamic-page-field" type="checkbox" value="left">
-			<label for="dynamic-page-field"><span>
-		</div>
-		<div class="sdpi-item" id="page-wrapper">
-			<div class="sdpi-item-label">Page</div> 
-			<input data-localize class="sdpi-item-value" id="page-field" name="name" type="number" min="1" value="" placeholder="" />
-		</div>
-
-		<!-- <div type="checkbox" class="sdpi-item">
-			<div class="sdpi-item-label">Dynamic Position</div>
-			<input class="sdpi-item-value" id="dynamic-position-field" type="checkbox" value="left">
-			<label for="dynamic-position-field"><span>
-		</div> -->
-		<div class="sdpi-item" id="row-wrapper">
-			<div class="sdpi-item-label">Row</div> 
-			<input data-localize class="sdpi-item-value" id="row-field" name="name" type="number" value="" placeholder="" />
-		</div>
-		<div class="sdpi-item" id="column-wrapper">
-			<div class="sdpi-item-label">Column</div> 
-			<input data-localize class="sdpi-item-value" id="column-field" name="name" type="number" value="" placeholder="" />
-		</div>
+		<script src="https://sdpi-components.dev/releases/v3/sdpi-components.js"></script>
+	</head>
+	<body>
+		<sdpi-item label="Dynamic Page">
+			<sdpi-checkbox setting="dynamicPage"></sdpi-checkbox>
+		</sdpi-item>
+		<sdpi-item label="Page">
+			<sdpi-textfield setting="page" pattern="/^\d+$/" placeholder="1" required></sdpi-textfield>
+		</sdpi-item>
+		<sdpi-item label="Row">
+			<sdpi-textfield setting="row" pattern="/^\d+$/" placeholder="1" required></sdpi-textfield>
+		</sdpi-item>
+		<sdpi-item label="Column">
+			<sdpi-textfield setting="column" pattern="/^\d+$/" placeholder="1" required></sdpi-textfield>
+		</sdpi-item>
 		<div class="sdpi-item">
-			<details class="message caution" id="companion_connect" style="display:none">
+			<details class="message" id="companion_connect" style="display: none">
 				<summary></summary>
 			</details>
 		</div>
-	</div>
+		<div class="sdpi-item">
+			<div style="display: flex; align-items: flex-end">
+				<img
+					src="./assets/settings-filled.svg"
+					alt="Cog"
+					style="width: 14px; height: 14px; margin-right: 4px; filter: invert(0.6)"
+				/>
+				<a id="open-config" href="#" style="text-decoration: none" data-i18n
+					>Open Companion Plugin General Configuration</a
+				>
+			</div>
+		</div>
 
-	<script type="module" src="./bin/inspector.js"></script>
-</body>
+		<script src="js/inspector.js"></script>
+	</body>
 </html>
