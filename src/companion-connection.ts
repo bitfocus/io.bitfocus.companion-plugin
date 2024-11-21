@@ -85,6 +85,7 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 		/* this.timer = */ setInterval(() => {
 			if (!this.#websocket || !this.isConnected) {
 				console.log('Not connected?')
+				streamDeck.logger.info('Not connected, trying to reconnect')
 				this.connect()
 			}
 		}, 5000)
@@ -110,7 +111,7 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 		}
 	}
 
-	apicommand<T extends keyof CompanionConnectionMessages>(command: T, args: CompanionConnectionMessages[T]) {
+	apiCommand<T extends keyof CompanionConnectionMessages>(command: T, args: CompanionConnectionMessages[T]) {
 		if (this.#websocket && this.#websocket.readyState == 1) {
 			const sendStr = JSON.stringify({ command: command, arguments: args })
 			streamDeck.logger.debug(`send: ${sendStr}`)
@@ -122,12 +123,16 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 
 	connect() {
 		console.log('cc: connect')
+		streamDeck.logger.info('Connecting to Companion at', this.address, this.port)
 		const websocket = (this.#websocket = new WebSocket('ws://' + this.address + ':' + this.port))
 
 		websocket.onopen = () => {
+			// Websocket is connected
+			console.log('[COMPANION]***** WEBSOCKET CONNECTED ****')
+			streamDeck.logger.debug('Websocket connected')
 			this.isConnected = true
 			this.removeAllListeners('version:result')
-			this.apicommand('version', { version: 2 })
+			this.apiCommand('version', { version: 2 })
 			this.once('version:result', (args) => {
 				if (args.error) {
 					console.warn('Error connecting: ', args)
@@ -152,11 +157,13 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 		websocket.onerror = (evt) => {
 			// @ts-ignore
 			console.warn('WEBSOCKET ERROR', evt, evt.data)
+			streamDeck.logger.debug('[COMPANION]***** WEBSOCKET ERROR ****', evt)
 		}
 
 		websocket.onclose = (evt) => {
 			// Websocket is closed
 			console.log('[COMPANION]***** WEBSOCKET CLOSED **** reason:', evt.code)
+			streamDeck.logger.debug('Websocket closed', evt.code)
 
 			this.isConnected = false
 			this.errorMessage = null
