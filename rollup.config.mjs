@@ -48,36 +48,4 @@ const pluginConfig = {
 	],
 }
 
-/**
- * @type {import('rollup').RollupOptions}
- */
-const inspectorConfig = {
-	input: 'src/inspector.ts',
-	output: {
-		file: `${sdPlugin}/bin/inspector.js`,
-		sourcemap: isWatching,
-		sourcemapPathTransform: (relativeSourcePath, sourcemapPath) => {
-			return url.pathToFileURL(path.resolve(path.dirname(sourcemapPath), relativeSourcePath)).href
-		},
-	},
-	plugins: [
-		typescript({
-			mapRoot: isWatching ? './' : undefined,
-		}),
-		nodeResolve({
-			browser: true,
-			exportConditions: ['node'],
-			preferBuiltins: true,
-		}),
-		commonjs(),
-		!isWatching && terser(),
-		// {
-		// 	name: "emit-module-package-file",
-		// 	generateBundle() {
-		// 		this.emitFile({ fileName: "package.json", source: `{ "type": "module" }`, type: "asset" });
-		// 	}
-		// }
-	],
-}
-
-export default [pluginConfig, inspectorConfig]
+export default [pluginConfig]
