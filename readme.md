@@ -11,8 +11,8 @@ Companion plugin for the native Stream Deck application
 1. If you are editing any Property Inspectors, you can refer to the SDPI documentation here: https://sdpi-components.dev/
 1. Run `yarn build` to ensure everything compiles correctly.
 1. If the plugin is already installed in the Elgato Stream Deck software, uninstall it.
-1. Run `yarn link`.
-1. Run `streamdeck restart io.bitfocus.companion-plugin.sdPlugin` in the repo folder.
+1. Run `yarn run link`.
+1. Run `yarn run restart` in the repo folder.
 1. If you are making frequent code changes, you can run `yarn run watch` which will automatically recompile the source code as needed.
 
 Submit your changes as a pull request to this repository.
