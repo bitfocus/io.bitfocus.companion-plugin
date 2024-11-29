@@ -46,11 +46,8 @@ streamDeck.settings.onDidReceiveGlobalSettings((settings: DidReceiveGlobalSettin
 		streamDeck.logger.warn(`Failed to save global settings: ${e}`)
 	})
 
-	streamDeck.logger.info('Connecting to Companion at', ip, port)
-
 	connection.setAddress(ip)
 	connection.setPort(port)
-
 	connection.connect()
 })
 
