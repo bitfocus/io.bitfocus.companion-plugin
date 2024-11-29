@@ -1,9 +1,10 @@
 {
 	"scripts": {
-		"build": "rollup -c --nocache",
+		"build": "rollup -c",
 		"watch": "rollup -c --nocache -w --watch.onEnd=\"streamdeck restart io.bitfocus.companion-plugin\"",
 		"link": "streamdeck link io.bitfocus.companion-plugin.sdPlugin",
 		"pack": "streamdeck pack io.bitfocus.companion-plugin.sdPlugin",
+		"restart": "streamdeck restart io.bitfocus.companion-plugin",
 		"format": "prettier -w ."
 	},
 	"type": "module",
