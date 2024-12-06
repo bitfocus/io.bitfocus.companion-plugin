@@ -9,12 +9,8 @@
 			"type": "node",
 			"request": "attach",
 			"processId": "${command:PickProcess}",
-			"outFiles": [
-				"${workspaceFolder}/bin/**/*.js"
-			],
-			"resolveSourceMapLocations": [
-				"${workspaceFolder}/**"
-			]
+			"outFiles": ["${workspaceFolder}/bin/**/*.js"],
+			"resolveSourceMapLocations": ["${workspaceFolder}/**"]
 		}
 	]
 }

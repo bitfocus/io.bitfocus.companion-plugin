@@ -66,6 +66,7 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 	#websocket: WebSocket | undefined
 
 	address: string
+	port: number
 
 	public isConnected = false
 	public errorMessage: 'wrongversion' | null = null
@@ -73,31 +74,44 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 
 	private remote_version: number | null = null
 
-	constructor(address?: string) {
+	constructor(address?: string, port?: number) {
 		super()
 
 		this.address = address || '127.0.0.1'
+		this.port = port || 28492
+
 		this.isConnected = false
 
 		/* this.timer = */ setInterval(() => {
 			if (!this.#websocket || !this.isConnected) {
 				console.log('Not connected?')
+				streamDeck.logger.info('Not connected, trying to reconnect')
 				this.connect()
 			}
 		}, 5000)
 	}
 
 	setAddress(address: string): void {
-		console.log('cc: setAddress', address)
+		let oldAddress = this.address
 
-		this.address = address
+		if (oldAddress !== this.address) {
+			streamDeck.logger.info(`Setting address from ${oldAddress} to ${address}`)
 
-		if (this.isConnected) {
-			this.connect()
+			this.address = address
 		}
 	}
 
-	apicommand<T extends keyof CompanionConnectionMessages>(command: T, args: CompanionConnectionMessages[T]) {
+	setPort(port: number): void {
+		let oldPort = this.port
+
+		if (oldPort !== this.port) {
+			streamDeck.logger.info(`Setting port from ${oldPort} to ${port}`)
+
+			this.port = port
+		}
+	}
+
+	apiCommand<T extends keyof CompanionConnectionMessages>(command: T, args: CompanionConnectionMessages[T]) {
 		if (this.#websocket && this.#websocket.readyState == 1) {
 			const sendStr = JSON.stringify({ command: command, arguments: args })
 			streamDeck.logger.debug(`send: ${sendStr}`)
@@ -109,12 +123,31 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 
 	connect() {
 		console.log('cc: connect')
-		const websocket = (this.#websocket = new WebSocket('ws://' + this.address + ':28492'))
+		streamDeck.logger.info('Connecting to Companion Instance at', this.address, this.port)
+		let websocket: WebSocket
+		
+		try {
+			if (this.#websocket !== undefined) {
+				streamDeck.logger.debug('Closing existing websocket')
+				this.#websocket.close()
+			}
+		}
+		catch (e) {
+			console.warn('Error closing websocket', e)
+		}
+		finally {
+			this.#websocket = undefined
+		}
+		
+		websocket = (this.#websocket = new WebSocket('ws://' + this.address + ':' + this.port))
 
 		websocket.onopen = () => {
+			// Websocket is connected
+			console.log('[COMPANION]***** WEBSOCKET CONNECTED ****')
+			streamDeck.logger.debug('Websocket connected')
 			this.isConnected = true
 			this.removeAllListeners('version:result')
-			this.apicommand('version', { version: 2 })
+			this.apiCommand('version', { version: 2 })
 			this.once('version:result', (args) => {
 				if (args.error) {
 					console.warn('Error connecting: ', args)
@@ -138,12 +171,14 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 
 		websocket.onerror = (evt) => {
 			// @ts-ignore
-			console.warn('WEBOCKET ERROR', evt, evt.data)
+			console.warn('WEBSOCKET ERROR', evt, evt.data)
+			streamDeck.logger.debug('[COMPANION]***** WEBSOCKET ERROR ****', evt)
 		}
 
 		websocket.onclose = (evt) => {
 			// Websocket is closed
-			console.log('[COMPANION]***** WEBOCKET CLOSED **** reason:', evt.code)
+			console.log('[COMPANION]***** WEBSOCKET CLOSED **** reason:', evt.code)
+			streamDeck.logger.debug('Websocket closed', evt.code)
 
 			this.isConnected = false
 			this.errorMessage = null
@@ -170,4 +205,5 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 	}
 }
 
+//export { CompanionConnection }
 export const connection = new CompanionConnection()

@@ -1,11 +1,11 @@
 {
-    "id": "io.bitfocus.companion-plugin.layouts.encoder",
-    "items": [
-      {
-        "key": "canvas",
-        "type": "pixmap",
-        "rect": [50, 0, 100, 100],
-        "zOrder": 1
-      }
-    ]
-  }
+	"id": "io.bitfocus.companion-plugin.layouts.encoder",
+	"items": [
+		{
+			"key": "canvas",
+			"type": "pixmap",
+			"rect": [50, 0, 100, 100],
+			"zOrder": 1
+		}
+	]
+}

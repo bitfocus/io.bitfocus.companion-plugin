@@ -1,19 +1,13 @@
 {
-	"extends": "@tsconfig/node20/tsconfig.json",
+	"extends": "./node_modules/@tsconfig/node20/tsconfig.json",
 	"compilerOptions": {
-		"customConditions": [
-			"node"
-		],
+		"customConditions": ["node"],
 		"module": "ES2022",
 		"moduleResolution": "Bundler",
-		"lib": [
-			"DOM"
-		]
+		"lib": ["DOM"],
+		"target": "ES2022",
+		"typeRoots": ["node_modules/@types", "src/types"]
 	},
-	"include": [
-		"src/**/*.ts"
-	],
-	"exclude": [
-		"node_modules"
-	]
+	"include": ["src/**/*.ts"],
+	"exclude": ["node_modules"]
 }
