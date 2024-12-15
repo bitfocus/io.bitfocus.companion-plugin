@@ -236,14 +236,12 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	#drawImage(action: Action<CompanionButtonSettings>, image: string) {
 		if (action.isKey()) {
 			let keyAction = action as KeyAction
-			keyAction.setImage(image)
-			.catch((e) => {
+			keyAction.setImage(image).catch((e) => {
 				streamDeck.logger.error(`Draw image failed: ${e}`)
 			})
 		} else if (action.isDial()) {
 			let dialAction = action as DialAction
-			dialAction.setFeedback({ canvas: image })
-			.catch((e) => {
+			dialAction.setFeedback({ canvas: image }).catch((e) => {
 				streamDeck.logger.error(`Draw image failed: ${e}`)
 			})
 		} else {

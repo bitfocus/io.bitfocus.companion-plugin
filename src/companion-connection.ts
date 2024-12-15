@@ -94,7 +94,7 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 	setAddress(address: string): void {
 		let oldAddress = this.address
 
-		if (oldAddress !== this.address) {
+		if (address !== this.address) {
 			streamDeck.logger.info(`Setting address from ${oldAddress} to ${address}`)
 
 			this.address = address
@@ -104,7 +104,7 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 	setPort(port: number): void {
 		let oldPort = this.port
 
-		if (oldPort !== this.port) {
+		if (port !== this.port) {
 			streamDeck.logger.info(`Setting port from ${oldPort} to ${port}`)
 
 			this.port = port
@@ -125,21 +125,19 @@ class CompanionConnection extends EventEmitter<CompanionConnectionEvents> {
 		console.log('cc: connect')
 		streamDeck.logger.info('Connecting to Companion Instance at', this.address, this.port)
 		let websocket: WebSocket
-		
+
 		try {
 			if (this.#websocket !== undefined) {
 				streamDeck.logger.debug('Closing existing websocket')
 				this.#websocket.close()
 			}
-		}
-		catch (e) {
+		} catch (e) {
 			console.warn('Error closing websocket', e)
-		}
-		finally {
+		} finally {
 			this.#websocket = undefined
 		}
-		
-		websocket = (this.#websocket = new WebSocket('ws://' + this.address + ':' + this.port))
+
+		websocket = this.#websocket = new WebSocket('ws://' + this.address + ':' + this.port)
 
 		websocket.onopen = () => {
 			// Websocket is connected
