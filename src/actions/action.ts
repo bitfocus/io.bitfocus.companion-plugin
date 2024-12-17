@@ -68,6 +68,11 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			ev.payload.settings.column = Number(coordinates[0]) - 1
 		}
 
+		// Ensure values are numbers
+		ev.payload.settings.row = Number(ev.payload.settings.row) || 0
+		ev.payload.settings.column = Number(ev.payload.settings.column) || 0
+		ev.payload.settings.page = Number(ev.payload.settings.page) || 1
+
 		await ev.action.setSettings(ev.payload.settings)
 
 		this.#drawImage(ev.action, connection.isConnected ? imageLoading : imageNotConnected)
@@ -147,6 +152,11 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		streamDeck.logger.debug(`got settings: ${JSON.stringify(ev)}`)
 
 		await ev.action.setTitle('')
+
+		// Ensure values are numbers
+		ev.payload.settings.row = Number(ev.payload.settings.row) || 0
+		ev.payload.settings.column = Number(ev.payload.settings.column) || 0
+		ev.payload.settings.page = Number(ev.payload.settings.page) || 1
 
 		// unsubscribe old settings
 		const oldActionItem = this.#actionItems.get(ev.action.id)
