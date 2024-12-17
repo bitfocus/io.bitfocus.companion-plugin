@@ -1,5 +1,5 @@
 {
-	"Name": "Companion Plugin",
+	"Name": "Bitfocus Companion Plugin",
 	"Version": "3.2.2.0",
 	"Author": "Bitfocus AS",
 	"Actions": [
@@ -8,7 +8,10 @@
 			"UUID": "io.bitfocus.companion-plugin.action",
 			"Icon": "img/actionIcon",
 			"Tooltip": "Control anything in companion",
-			"Controllers": ["Keypad", "Encoder"],
+			"Controllers": [
+				"Keypad",
+				"Encoder"
+			],
 			"Encoder": {
 				"layout": "encoderLayout.json"
 			},
@@ -20,7 +23,7 @@
 			]
 		}
 	],
-	"Category": "Companion",
+	"Category": "Bitfocus Companion Plugin",
 	"CategoryIcon": "img/pluginIcon",
 	"CodePath": "bin/plugin.js",
 	"PropertyInspectorPath": "propertyinspector.html",
