@@ -20,7 +20,7 @@
 		"@types/pngjs": "^6.0.5",
 		"@types/ws": "^8.5.13",
 		"prettier": "^3.3.3",
-		"rollup": "^4.27.3",
+		"rollup": "^4.59.0",
 		"tslib": "^2.8.1",
 		"typescript": "^5.6.3"
 	},
