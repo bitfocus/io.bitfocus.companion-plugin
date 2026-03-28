@@ -20,7 +20,7 @@ import imageNotConnected from '../img/actionNotConnected.png'
 import imageLoading from '../img/loadingIcon.png'
 
 import { connection, FillImageMessage } from '../companion-connection'
-import { bankIndexToRowAndColumn, dataToImageUrl, extractRowAndColumn } from '../util'
+import { dataToImageUrl, extractRowAndColumn } from '../util'
 
 interface KeyImageCache {
 	listeners: Map<string, { action: Action<CompanionButtonSettings> }>
@@ -154,7 +154,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		if (!coords) return
 		const { row, column } = coords
 
-		const imageUrl = data.png ? data.data : dataToImageUrl(data.data.data)
+		const imageUrl = data.png ? data.data : dataToImageUrl(data.data)
 
 		const buttonSettings: CompanionButtonSettings = { dynamicPage: !page, page: page || 0, row, column }
 		const keyId = getKeyIdFromSettings(buttonSettings)

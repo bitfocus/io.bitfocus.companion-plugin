@@ -2,13 +2,13 @@ import { FillImageMessage } from './companion-connection'
 import { PNG } from 'pngjs'
 
 // TODO - this is very inefficient
-export function dataToImageUrl(data: number[]): string {
+export function dataToImageUrl(data: Buffer | { data: number[] }): string {
 	const png = new PNG({
 		width: 72,
 		height: 72,
 	})
 
-	const inputData = Buffer.from(data)
+	const inputData = Buffer.isBuffer(data) ? data : Buffer.from(data.data)
 
 	// Transform the received RGB to RGBA
 	for (let y = 0; y < 72; y++) {
@@ -23,7 +23,7 @@ export function dataToImageUrl(data: number[]): string {
 		}
 	}
 
-	return 'data:image/png;base64,' + PNG.sync.write(png).toString('base64')
+	return 'data:image/png;base64,' + PNG.sync.write(png, { deflateLevel: 1 }).toString('base64')
 }
 
 export function combineBankNumber(row: number, column: number): number | null {

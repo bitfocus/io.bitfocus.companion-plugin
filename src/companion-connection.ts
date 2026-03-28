@@ -3,7 +3,6 @@ import { EventEmitter } from 'node:events'
 import { WebSocket } from 'ws'
 import { SatelliteClient, SatelliteFillImageData } from './satellite/client'
 import { ConnectionMode } from './types/types'
-import { dataToImageUrl } from './util'
 
 export type FillImageMessage = {
 	page: number | null
@@ -11,7 +10,7 @@ export type FillImageMessage = {
 	keyIndex: number | undefined
 	row: number | undefined
 	column: number | undefined
-} & ({ png: true; data: string } | { png: undefined; data: { data: number[] } })
+} & ({ png: true; data: string } | { png: undefined; data: Buffer | { data: number[] } })
 
 interface ConnectionManagerEvents {
 	connected: []
@@ -274,7 +273,7 @@ class ConnectionManager extends EventEmitter<ConnectionManagerEvents> {
 			if (impl instanceof SatelliteClient) {
 				// Satellite BITMAP fields are raw RGB24 base64 — decode to bytes for dataToImageUrl
 				const satData = data as SatelliteFillImageData
-				const bytes = Array.from(Buffer.from(satData.data, 'base64'))
+				const bytes = Buffer.from(satData.data, 'base64')
 				this.emit('fillImage', {
 					page: satData.page,
 					bank: null,
@@ -282,7 +281,7 @@ class ConnectionManager extends EventEmitter<ConnectionManagerEvents> {
 					row: satData.row,
 					column: satData.column,
 					png: undefined,
-					data: { data: bytes },
+					data: bytes,
 				})
 			} else {
 				this.emit('fillImage', data as FillImageMessage)

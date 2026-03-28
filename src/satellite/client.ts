@@ -1,6 +1,6 @@
 // Adapted from companion-satellite's client.ts (battle-tested protocol handling)
 import { EventEmitter } from 'node:events'
-import { satisfies as semverSatisfies, gte as semverGte } from 'semver'
+import { satisfies as semverSatisfies } from 'semver'
 import streamDeck from '@elgato/streamdeck'
 import {
 	ICompanionSatelliteClient,
