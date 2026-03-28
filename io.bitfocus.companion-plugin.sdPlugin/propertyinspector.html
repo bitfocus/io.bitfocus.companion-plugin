@@ -9,9 +9,8 @@
 		<meta name="apple-mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-status-bar-style" content="black" />
 		<title>io.bitfocus.companion-plugin Property Inspector</title>
-		<link rel="stylesheet" href="css/sdpi.css" />
 
-		<script src="https://sdpi-components.dev/releases/v3/sdpi-components.js"></script>
+		<script src="js/vendor/sdpi-components.js"></script>
 	</head>
 	<body>
 		<sdpi-item label="Dynamic Page">
@@ -26,23 +25,20 @@
 		<sdpi-item label="Column">
 			<sdpi-textfield setting="column" pattern="/^\d+$/" placeholder="0"></sdpi-textfield>
 		</sdpi-item>
-		<div class="sdpi-item">
+		<sdpi-item>
 			<details class="message" id="companion_connect" style="display: none">
 				<summary></summary>
 			</details>
-		</div>
-		<div class="sdpi-item">
-			<div style="display: flex; align-items: flex-end">
-				<img
+		</sdpi-item>
+		<sdpi-item>
+			<sdpi-button id="open-config"><img
 					src="./assets/settings-filled.svg"
 					alt="Cog"
-					style="width: 14px; height: 14px; margin-right: 4px; filter: invert(0.6)"
+					style="width: 14px; height: 14px; margin-right: 4px; margin-bottom: -2px; filter: invert(0.6)"
 				/>
-				<a id="open-config" href="#" style="text-decoration: none" data-i18n
-					>Open Companion Plugin General Configuration</a
-				>
-			</div>
-		</div>
+				Open Plugin Configuration
+			</sdpi-button>
+		</sdpi-item>
 
 		<script src="js/inspector.js"></script>
 	</body>

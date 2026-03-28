@@ -1,5 +1,5 @@
 import streamDeck from '@elgato/streamdeck'
-import EventEmitter from 'eventemitter3'
+import {EventEmitter} from 'node:events'
 import { WebSocket } from 'ws'
 
 export type FillImageMessage = {

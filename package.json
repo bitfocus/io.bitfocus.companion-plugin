@@ -6,7 +6,8 @@
 		"pack": "streamdeck pack io.bitfocus.companion-plugin.sdPlugin",
 		"restart": "streamdeck restart io.bitfocus.companion-plugin",
 		"format": "prettier -w .",
-		"check-types": "tsc --noEmit"
+		"check-types": "tsc --noEmit",
+		"vendor": "node scripts/download-vendor.mjs"
 	},
 	"type": "module",
 	"devDependencies": {
@@ -27,7 +28,6 @@
 	},
 	"dependencies": {
 		"@elgato/streamdeck": "^2.0.4",
-		"eventemitter3": "^5.0.4",
 		"pngjs": "^7.0.0",
 		"ws": "^8.20.0"
 	},

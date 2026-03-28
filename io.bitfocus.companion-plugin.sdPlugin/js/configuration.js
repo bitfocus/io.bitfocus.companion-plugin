@@ -1,6 +1,17 @@
 // Invoke a request for the global settings.
 const globalSettings = window.opener.getGlobalSettings()
 
+// Hack in titles for the items
+const items = document.querySelectorAll("sdpi-item")
+for (const item of items) {
+	if (item.hasAttribute('title')) {
+		const labelElm = item.querySelector('label')
+		if (labelElm) {
+			labelElm.title = item.getAttribute('title')
+		}
+	}
+}
+
 // Set the values of the inputs to the current global settings
 const inputIP = document.querySelector('#ip')
 if (globalSettings.ip) {

@@ -42,14 +42,6 @@ dynamicPageCheckbox.addEventListener('valuechange', function (ev) {
 	}
 })
 
-//set the width of the three textfields to 50px and display to block
-pageField.style.width = '50px'
-pageField.style.display = 'block'
-rowField.style.width = '50px'
-rowField.style.display = 'block'
-columnField.style.width = '50px'
-columnField.style.display = 'block'
-
 // Open the configuration window when the button/text is clicked.
 const openConfigButton = document.querySelector('#open-config')
 openConfigButton.addEventListener('click', () => {
