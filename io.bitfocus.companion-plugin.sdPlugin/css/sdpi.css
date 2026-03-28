@@ -752,7 +752,8 @@ details > summary::-webkit-details-marker,
 }
 
 .sdpi-more-info {
-	background-image: linear-gradient(to right, #00000000 0%, #00000040 80%),
+	background-image:
+		linear-gradient(to right, #00000000 0%, #00000040 80%),
 		url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpolygon fill='%23999' points='4 7 8 7 8 5 12 8 8 11 8 9 4 9'/%3E%3C/svg%3E%0A");
 }
 

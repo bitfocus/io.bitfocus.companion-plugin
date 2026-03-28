@@ -5,7 +5,8 @@
 		"link": "streamdeck link io.bitfocus.companion-plugin.sdPlugin",
 		"pack": "streamdeck pack io.bitfocus.companion-plugin.sdPlugin",
 		"restart": "streamdeck restart io.bitfocus.companion-plugin",
-		"format": "prettier -w ."
+		"format": "prettier -w .",
+		"check-types": "tsc --noEmit"
 	},
 	"type": "module",
 	"devDependencies": {
