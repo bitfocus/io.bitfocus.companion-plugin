@@ -1,7 +1,6 @@
 import streamDeck, {
 	Action,
 	action,
-	//ActionEvent,
 	DialAction,
 	DialDownEvent,
 	DialRotateEvent,
@@ -10,9 +9,7 @@ import streamDeck, {
 	KeyAction,
 	KeyDownEvent,
 	KeyUpEvent,
-	LogLevel,
 	PropertyInspectorDidAppearEvent,
-	PropertyInspectorDidDisappearEvent,
 	SingletonAction,
 	TitleParametersDidChangeEvent,
 	WillAppearEvent,
@@ -227,7 +224,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	}
 
 	#propertyInspectorConnectionStatus() {
-		if (!streamDeck.ui.current) return
+		if (!streamDeck.ui.action) return
 
 		let connectionStatus: string | null = connection.errorMessage
 		if (!connectionStatus && !connection.isConnected) {

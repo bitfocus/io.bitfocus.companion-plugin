@@ -1,13 +1,13 @@
 import { GlobalSettings } from './types/types'
 
-import streamDeck, { LogLevel, DidReceiveGlobalSettingsEvent } from '@elgato/streamdeck'
+import streamDeck, { DidReceiveGlobalSettingsEvent } from '@elgato/streamdeck'
 
 import { connection } from './companion-connection'
 
 import { CompanionButtonAction } from './actions/action'
 
 // We can enable "trace" logging so that all messages between the Stream Deck, and the plugin are recorded. When storing sensitive information
-streamDeck.logger.setLevel(LogLevel.DEBUG)
+streamDeck.logger.setLevel('debug')
 
 // Register the actions.
 const mainAction = new CompanionButtonAction()

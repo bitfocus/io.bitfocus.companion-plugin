@@ -1,4 +1,5 @@
 {
+	"$schema": "../node_modules/@elgato/schemas/streamdeck/plugins/manifest.json",
 	"Name": "Bitfocus Companion Plugin",
 	"Version": "3.2.2.0",
 	"Author": "Bitfocus AS",
@@ -30,14 +31,14 @@
 	"Description": "This lets you control instances in Companion. You need to install Companion 2.4 or newer from https://bitfocus.io/companion/ first, and enable support for this plugin in the Companion Settings tab to be able to use this plugin.",
 	"Icon": "img/pluginIcon",
 	"URL": "https://bitfocus.io/companion/",
-	"SDKVersion": 2,
+	"SDKVersion": 3,
 	"Software": {
-		"MinimumVersion": "6.5"
+		"MinimumVersion": "7.1"
 	},
 	"OS": [
 		{
 			"Platform": "mac",
-			"MinimumVersion": "10.15"
+			"MinimumVersion": "11"
 		},
 		{
 			"Platform": "windows",
@@ -45,7 +46,7 @@
 		}
 	],
 	"Nodejs": {
-		"Version": "20",
+		"Version": "24",
 		"Debug": "enabled"
 	},
 	"UUID": "io.bitfocus.companion-plugin",
