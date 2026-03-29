@@ -29,6 +29,7 @@ interface SatelliteClientEvents {
 	fillImage: [data: SatelliteFillImageData]
 	clearAllKeys: []
 	log: [message: string]
+	subscribeError: [subId: string | null]
 }
 
 interface TrackedSubscription {
@@ -55,12 +56,22 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 	public isConnected = false
 	public errorMessage: 'wrongversion' | null = null
 
+	// CAPS: whether the server supports subscriptions (ADD-SUB, etc.)
+	#subscriptionsSupported = false
+	// Deferred connection handshake (wait for CAPS after BEGIN)
+	#pendingConnected = false
+	#capsTimer: ReturnType<typeof setTimeout> | null = null
+
 	// Surface tracking for dynamic pages
 	#registeredSurface: TrackedSurface | null = null
 	// Button subscriptions for static pages
 	#subscriptions = new Map<string, TrackedSubscription>()
 	// Dynamic button keys that have been requested
 	#dynamicKeys = new Set<string>()
+
+	get subscriptionsSupported(): boolean {
+		return this.#subscriptionsSupported
+	}
 
 	constructor(connectionDetails: SomeConnectionDetails, deviceId: string) {
 		super()
@@ -83,11 +94,16 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			clearInterval(this.#pingInterval)
 			this.#pingInterval = null
 		}
+		if (this.#capsTimer) {
+			clearTimeout(this.#capsTimer)
+			this.#capsTimer = null
+		}
 		if (this.#client) {
 			this.#client.destroy()
 			this.#client = null
 		}
 		this.isConnected = false
+		this.#pendingConnected = false
 	}
 
 	#initSocket(): void {
@@ -142,6 +158,11 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 				clearInterval(this.#pingInterval)
 				this.#pingInterval = null
 			}
+			if (this.#capsTimer) {
+				clearTimeout(this.#capsTimer)
+				this.#capsTimer = null
+			}
+			this.#pendingConnected = false
 
 			const wasConnected = this.isConnected
 			this.isConnected = false
@@ -194,11 +215,17 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			case 'BEGIN':
 				this.#handleBegin(params)
 				break
+			case 'CAPS':
+				this.#handleCaps(params)
+				break
 			case 'KEY-STATE':
 				this.#handleState(params)
 				break
 			case 'SUB-STATE':
 				this.#handleSubState(params)
+				break
+			case 'ADD-SUB':
+				this.#handleAddSubResponse(paramStr)
 				break
 			case 'KEYS-CLEAR':
 				this.emit('clearAllKeys')
@@ -239,6 +266,36 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			`Satellite: BEGIN CompanionVersion=${params['CompanionVersion']} ApiVersion=${apiVersion}`
 		)
 
+		// Defer emitting connected until CAPS is received (or timeout fires)
+		this.#pendingConnected = true
+		this.#subscriptionsSupported = false
+		this.errorMessage = null
+
+		// Defensive fallback: if CAPS never arrives, complete connection after 500ms
+		if (this.#capsTimer) clearTimeout(this.#capsTimer)
+		this.#capsTimer = setTimeout(() => {
+			this.#capsTimer = null
+			streamDeck.logger.warn('Satellite: CAPS not received within timeout, completing connection without subscriptions')
+			this.#completeConnection()
+		}, 500)
+	}
+
+	#handleCaps(params: Record<string, string>): void {
+		if (this.#capsTimer) {
+			clearTimeout(this.#capsTimer)
+			this.#capsTimer = null
+		}
+
+		this.#subscriptionsSupported = params['SUBSCRIPTIONS'] === '1'
+		streamDeck.logger.info(`Satellite: CAPS SUBSCRIPTIONS=${this.#subscriptionsSupported}`)
+
+		this.#completeConnection()
+	}
+
+	#completeConnection(): void {
+		if (!this.#pendingConnected) return
+		this.#pendingConnected = false
+
 		this.isConnected = true
 		this.errorMessage = null
 
@@ -247,12 +304,29 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			this.#reRegisterSurface()
 		}
 
-		// Re-subscribe all tracked subscriptions
-		for (const sub of this.#subscriptions.values()) {
-			this.#sendSubscribe(sub.page, sub.row, sub.column)
+		// Re-subscribe all tracked subscriptions (only if server supports it)
+		if (this.#subscriptionsSupported) {
+			for (const sub of this.#subscriptions.values()) {
+				this.#sendSubscribe(sub.page, sub.row, sub.column)
+			}
 		}
 
 		this.emit('connected')
+	}
+
+	#handleAddSubResponse(paramStr: string): void {
+		// Response format: ADD-SUB OK or ADD-SUB ERROR SUBID=x MESSAGE="..."
+		const statusEnd = paramStr.indexOf(' ')
+		const status = statusEnd === -1 ? paramStr : paramStr.substring(0, statusEnd)
+
+		if (status === 'ERROR') {
+			const rest = statusEnd === -1 ? '' : paramStr.substring(statusEnd + 1)
+			const params = parseLineParameters(rest)
+			const subId = params['SUBID'] ?? null
+			const message = params['MESSAGE'] ?? 'unknown error'
+			streamDeck.logger.warn(`Satellite: ADD-SUB failed for SUBID=${subId}: ${message}`)
+			this.emit('subscribeError', subId)
+		}
 	}
 
 	// KEY-STATE for surface/dynamic page buttons
@@ -352,7 +426,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 				KEY: String(row * cols + column),
 				PRESSED: 'true',
 			})
-		} else {
+		} else if (this.#subscriptionsSupported) {
 			// Static page: subscription press
 			this.#sendMessage('SUB-PRESS', {
 				SUBID: `${page}/${row}/${column}`,
@@ -369,7 +443,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 				KEY: String(row * cols + column),
 				PRESSED: 'false',
 			})
-		} else {
+		} else if (this.#subscriptionsSupported) {
 			this.#sendMessage('SUB-PRESS', {
 				SUBID: `${page}/${row}/${column}`,
 				PRESSED: 'false',
@@ -389,7 +463,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 					KEY: String(row * cols + column),
 					DIRECTION: direction,
 				})
-			} else {
+			} else if (this.#subscriptionsSupported) {
 				this.#sendMessage('SUB-ROTATE', {
 					SUBID: `${page}/${row}/${column}`,
 					DIRECTION: direction,
@@ -408,10 +482,10 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 				this.#ensureSurfaceSize(row + 1, column + 1)
 			}
 		} else {
-			// Static: subscribe to button
+			// Static: subscribe to button (only if server supports subscriptions)
 			const subId = `${page}/${row}/${column}`
 			this.#subscriptions.set(subId, { page, row, column })
-			if (this.isConnected) {
+			if (this.isConnected && this.#subscriptionsSupported) {
 				this.#sendSubscribe(page, row, column)
 			}
 		}
@@ -425,7 +499,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		} else {
 			const subId = `${page}/${row}/${column}`
 			this.#subscriptions.delete(subId)
-			if (this.isConnected) {
+			if (this.isConnected && this.#subscriptionsSupported) {
 				this.#sendMessage('REMOVE-SUB', { SUBID: subId })
 			}
 		}

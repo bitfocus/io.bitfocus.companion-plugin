@@ -125,6 +125,10 @@ connection.on('clearAllKeys', () => {
 	mainAction.clearAllDynamicKeys()
 })
 
+connection.on('subscribeError', (subId) => {
+	mainAction.handleSubscribeError(subId)
+})
+
 connection.on('disconnect', () => {
 	streamDeck.logger.info('Disconnected from Companion')
 	mainAction.connectionStateChange()

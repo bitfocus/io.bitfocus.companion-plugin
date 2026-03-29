@@ -40,6 +40,9 @@ dynamicPageCheckbox.addEventListener('valuechange', function (ev) {
 		pageLabel.style.display = 'block'
 		pageField.style.display = 'block'
 	}
+
+	// Re-evaluate connection status warning (subscriptions warning depends on dynamic/static)
+	evaluateConnectionStatus()
 })
 
 // Open the configuration window when the button/text is clicked.
@@ -108,6 +111,22 @@ function evaluateConnectionStatus() {
 		default:
 			companionConnect.innerHTML = '<summary>Unknown error: ' + globalSettings.connectionStatus + '</summary>'
 			break
+	}
+
+	// Show subscriptions warning for static-page buttons when connected via satellite
+	const subsWarning = document.querySelector('#subscriptions_warning')
+	if (subsWarning) {
+		const isDynamic = dynamicPageCheckbox && dynamicPageCheckbox.value == 1
+		if (
+			globalSettings.connectionStatus === 'connected' &&
+			isSatellite &&
+			globalSettings.subscriptionsAvailable === false &&
+			!isDynamic
+		) {
+			subsWarning.style.display = 'block'
+		} else {
+			subsWarning.style.display = 'none'
+		}
 	}
 }
 

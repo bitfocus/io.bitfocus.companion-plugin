@@ -182,6 +182,25 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		}
 	}
 
+	handleSubscribeError(subId: string | null) {
+		if (subId) {
+			// Specific subscription failed — find matching keyImageListeners entry
+			const existing = this.#keyImageListeners.get(subId)
+			if (existing) {
+				existing.cachedImage = null
+				for (const listener of existing.listeners.values()) {
+					this.#drawImage(listener.action, imageNotConnected)
+				}
+			}
+		} else {
+			// No SUBID — mark all static-page buttons as failed
+			for (const actionItem of this.#actionItems.values()) {
+				if (actionItem.settings.dynamicPage) continue
+				this.#drawImage(actionItem.action, imageNotConnected)
+			}
+		}
+	}
+
 	subscribeAll() {
 		if (!connection.isConnected) return
 
@@ -191,7 +210,12 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	}
 	connectionStateChange() {
 		for (const actionItem of this.#actionItems.values()) {
-			this.#drawImage(actionItem.action, connection.isConnected ? imageLoading : imageNotConnected)
+			// Static-page buttons with subscriptions unavailable cannot work
+			if (!actionItem.settings.dynamicPage && connection.subscriptionsAvailable === false) {
+				this.#drawImage(actionItem.action, imageNotConnected)
+			} else {
+				this.#drawImage(actionItem.action, connection.isConnected ? imageLoading : imageNotConnected)
+			}
 		}
 
 		this.#propertyInspectorConnectionStatus()
@@ -211,6 +235,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			streamDeck.settings.setGlobalSettings({
 				...currentSettings,
 				connectionStatus: connectionStatus,
+				subscriptionsAvailable: connection.subscriptionsAvailable,
 			})
 		}).catch((e) => {
 			streamDeck.logger.warn(`Failed to update connection status: ${e}`)
@@ -262,6 +287,8 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	#sendSubscribeForSettings(settings: CompanionButtonSettings) {
 		if (connection.isConnected) {
 			const page = settings.dynamicPage ? null : settings.page
+			// Skip static-page subscriptions if the server doesn't support them
+			if (!settings.dynamicPage && connection.subscriptionsAvailable === false) return
 			streamDeck.logger.debug(`send subscribe: ${JSON.stringify(settings)}`)
 			connection.requestButton(page, settings.row, settings.column)
 		}

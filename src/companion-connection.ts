@@ -18,6 +18,7 @@ interface ConnectionManagerEvents {
 	wrongversion: []
 	fillImage: [data: FillImageMessage]
 	clearAllKeys: []
+	subscribeError: [subId: string | null]
 }
 
 // ==================== Legacy Connection ====================
@@ -28,6 +29,7 @@ interface LegacyConnectionEvents {
 	wrongversion: []
 	fillImage: [data: FillImageMessage]
 	clearAllKeys: []
+	subscribeError: [subId: string | null]
 
 	'version:result': [arg: { error?: string; version: number }]
 	'new_device:result': [arg: { supportsPng?: boolean; supportsCoordinates?: boolean }]
@@ -41,6 +43,7 @@ class LegacyConnection extends EventEmitter<LegacyConnectionEvents> {
 
 	public isConnected = false
 	public errorMessage: 'wrongversion' | null = null
+	public readonly subscriptionsSupported: boolean = true
 	#supportsCoordinates = true
 	#reconnectTimer: ReturnType<typeof setInterval>
 
@@ -220,6 +223,7 @@ class ConnectionManager extends EventEmitter<ConnectionManagerEvents> {
 
 	public isConnected = false
 	public errorMessage: 'wrongversion' | null = null
+	public subscriptionsAvailable = false
 
 	setConnectionMode(options: ConnectionOptions): void {
 		// Tear down existing
@@ -232,6 +236,7 @@ class ConnectionManager extends EventEmitter<ConnectionManagerEvents> {
 
 		this.isConnected = false
 		this.errorMessage = null
+		this.subscriptionsAvailable = false
 		this.#mode = options.mode
 
 		if (options.mode === 'legacy') {
@@ -257,6 +262,7 @@ class ConnectionManager extends EventEmitter<ConnectionManagerEvents> {
 			streamDeck.logger.info(`ConnectionManager: connected (mode=${this.#mode})`)
 			this.isConnected = true
 			this.errorMessage = null
+			this.subscriptionsAvailable = impl.subscriptionsSupported
 			this.emit('connected')
 		})
 		impl.on('disconnect', () => {
@@ -289,6 +295,9 @@ class ConnectionManager extends EventEmitter<ConnectionManagerEvents> {
 		})
 		impl.on('clearAllKeys', () => {
 			this.emit('clearAllKeys')
+		})
+		impl.on('subscribeError', (subId: string | null) => {
+			this.emit('subscribeError', subId)
 		})
 	}
 

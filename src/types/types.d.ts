@@ -17,6 +17,7 @@ export type GlobalSettings = {
 	ip: string
 	port: number
 
-	// Shared
+	// Runtime Status Messages
 	connectionStatus: string
+	subscriptionsAvailable?: boolean
 }
