@@ -40,6 +40,9 @@ dynamicPageCheckbox.addEventListener('valuechange', function (ev) {
 		pageLabel.style.display = 'block'
 		pageField.style.display = 'block'
 	}
+
+	// Re-evaluate connection status warning (subscriptions warning depends on dynamic/static)
+	evaluateConnectionStatus()
 })
 
 // Open the configuration window when the button/text is clicked.
@@ -57,37 +60,73 @@ function evaluateConnectionStatus() {
 	companionConnect.classList.remove('caution')
 	companionConnect.classList.remove('info')
 
+	const mode = globalSettings.connectionMode || 'legacy'
+	let addressDisplay = ''
+	if (mode === 'satellite-tcp') {
+		addressDisplay = (globalSettings.satelliteTcpHost || '127.0.0.1') + ':' + (globalSettings.satelliteTcpPort || '16622')
+	} else if (mode === 'satellite-ws') {
+		addressDisplay = globalSettings.satelliteWsUrl || 'ws://127.0.0.1:16623'
+	} else {
+		addressDisplay = (globalSettings.ip || '127.0.0.1') + ':' + (globalSettings.port || '28492')
+	}
+
+	const isSatellite = mode === 'satellite-tcp' || mode === 'satellite-ws'
+
 	switch (globalSettings.connectionStatus) {
 		case 'wrongversion':
-			companionConnect.innerHTML =
-				'<summary style="color:#a20110;">Incompatible Companion version!</summary>' +
-				'<p>You need to install Companion 2.4 or newer.</p>'
+			if (isSatellite) {
+				companionConnect.innerHTML =
+					'<summary style="color:#a20110;">Incompatible Companion version!</summary>' +
+					'<p>The Satellite protocol requires Companion 4.3 or later.</p>'
+			} else {
+				companionConnect.innerHTML =
+					'<summary style="color:#a20110;">Incompatible Companion version!</summary>' +
+					'<p>You need to install Companion 2.4 or newer.</p>'
+			}
 			companionConnect.classList.add('caution')
 			break
 		case 'disconnected':
-			companionConnect.innerHTML =
-				'<summary style="color:#a20110;">Disconnected from Companion!</summary>' +
-				"<p>Make sure you have at least Companion version 2.4.0 or newer running on the same machine and that you have enabled support for the Elgato Plugin in Companion's Settings.</p>"
+			if (isSatellite) {
+				companionConnect.innerHTML =
+					'<summary style="color:#a20110;">Disconnected from Companion!</summary>' +
+					'<p>Make sure Companion 4.3 or later is running and the Satellite API is enabled in Companion\'s Settings.</p>'
+			} else {
+				companionConnect.innerHTML =
+					'<summary style="color:#a20110;">Disconnected from Companion!</summary>' +
+					"<p>Make sure you have at least Companion version 2.4.0 or newer running on the same machine and that you have enabled support for the Elgato Plugin in Companion's Settings.</p>"
+			}
 			companionConnect.classList.add('caution')
 			break
 		case 'connecting':
 			companionConnect.innerHTML =
 				'<summary style="color:#ffcc00;">Connecting to Companion...</summary>' +
-				'<p>Attempting to connect to Companion at ' +
-				globalSettings.ip +
-				':' +
-				globalSettings.port +
-				'</p>'
+				'<p>Attempting to connect to Companion at ' + addressDisplay + '</p>'
 			break
 		case 'connected':
 			companionConnect.innerHTML =
 				'<summary style="color:#009900;">Connected to Companion.</summary>' +
-				`<p>Connected to Companion at ${globalSettings.ip}:${globalSettings.port}</p>`
+				'<p>Connected to Companion at ' + addressDisplay + '</p>'
 			companionConnect.classList.add('info')
 			break
 		default:
 			companionConnect.innerHTML = '<summary>Unknown error: ' + globalSettings.connectionStatus + '</summary>'
 			break
+	}
+
+	// Show subscriptions warning for static-page buttons when connected via satellite
+	const subsWarning = document.querySelector('#subscriptions_warning')
+	if (subsWarning) {
+		const isDynamic = dynamicPageCheckbox && dynamicPageCheckbox.value == 1
+		if (
+			globalSettings.connectionStatus === 'connected' &&
+			isSatellite &&
+			globalSettings.subscriptionsAvailable === false &&
+			!isDynamic
+		) {
+			subsWarning.style.display = 'block'
+		} else {
+			subsWarning.style.display = 'none'
+		}
 	}
 }
 

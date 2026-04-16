@@ -6,6 +6,33 @@
 		<link rel="stylesheet" href="css/config-window.css" />
 
 		<script src="js/vendor/sdpi-components.js"></script>
+		<style>
+			.mode-section {
+				display: none;
+			}
+			.mode-section.active {
+				display: block;
+			}
+			#protocol-warning {
+				margin: 8px 0;
+				padding: 8px;
+				border-radius: 4px;
+				font-size: 0.9em;
+			}
+			#protocol-warning.warn-satellite {
+				background: #1a3a1a;
+				color: #66cc66;
+			}
+			#protocol-warning.warn-legacy {
+				background: #3a2a1a;
+				color: #ccaa66;
+			}
+			.field-hint {
+				font-size: 0.95em;
+				color: #888;
+				margin: -4px 0 6px 90px;
+			}
+		</style>
 	</head>
 
 	<body>
@@ -17,45 +44,112 @@
 		</div>
 		<div class="wrap">
 			<div class="section">
-				<div class="content-heading">IP/Port Settings</div>
-				<p>
-					The Companion Plugin communicates with Bitfocus Companion via a proprietary websockets protocol.
-					<br /><br />
-					Follow these steps to ensure the plugin can connect to Companion:
-				</p>
-				<p>
-					1. Open Companion's web GUI and go to the "Settings" tab.<br />
-					2. Scroll down to the "Surfaces" section.<br />
-					3. Disable the option, "Enable connected Streamdecks". When disabled, support for the Elgato software Plugin
-					will be enabled (Requires Companion restart). <br /><br />
-					<i
-						>Please note that by disabling this option, Companion will lose the ability to communicate with any locally
-						connected Streamdeck devices on the same computer running Companion as it will assume this Elgato software
-						is in control. Satellite instances will still work fine.</i
+				<div class="content-heading">Connection Settings</div>
+
+				<sdpi-item label="Protocol">
+					<sdpi-select id="connectionMode">
+						<option value="satellite-tcp">Satellite TCP (recommended)</option>
+						<option value="satellite-ws">Satellite WebSocket</option>
+						<option value="legacy">Legacy (deprecated)</option>
+					</sdpi-select>
+				</sdpi-item>
+
+				<div id="protocol-warning"></div>
+
+				<!-- Satellite TCP -->
+				<div id="section-satellite-tcp" class="mode-section">
+					<p>
+						The Satellite API allows this plugin to connect to Companion over a direct TCP connection. This is the
+						recommended protocol for Companion 4.3 and later.
+					</p>
+					<p>
+						1. Open Companion's web GUI and go to the <b>Settings</b> tab.<br />
+						2. Scroll down to the <b>Satellite API</b> section and ensure it is enabled.<br />
+						3. Enter the host and port below. If Companion is running on the same machine, use <code>127.0.0.1</code>.
+					</p>
+					<sdpi-item label="Host" title="Hostname or IP address of the machine running Companion">
+						<sdpi-textfield id="satelliteTcpHost" pattern="\S+" value="127.0.0.1"></sdpi-textfield>
+					</sdpi-item>
+					<sdpi-item
+						label="Port"
+						title="Satellite TCP port — only change this if you have modified the default in Companion's settings"
 					>
-				</p>
-				<p>Once this has been done, add the Companion server IP here:</p>
-				<div class="group">
-					<div>
-						<sdpi-item
-							label="IP"
-							title="IP Address for Companion. Please provide a valid IP address. If it is running on this same computer, you should use 127.0.0.1."
-						>
-							<sdpi-textfield id="ip" pattern="\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}" value="127.0.0.1"></sdpi-textfield>
-						</sdpi-item>
-
-						<sdpi-item
-							label="Port"
-							title="Port of Companion Plugin WebSocket server (should not typically need to change this)"
-						>
-							<sdpi-textfield id="port" pattern="\d{1,5}" value="28492"></sdpi-textfield>
-						</sdpi-item>
-
-						<sdpi-item>
-							<sdpi-button id="save" style="display: block; width: 80px">Save</sdpi-button>
-						</sdpi-item>
-					</div>
+						<sdpi-textfield id="satelliteTcpPort" pattern="\d{1,5}" value="16622"></sdpi-textfield>
+					</sdpi-item>
+					<div class="field-hint">Default port is <b>16622</b> — most users should not change this.</div>
 				</div>
+
+				<!-- Satellite WebSocket -->
+				<div id="section-satellite-ws" class="mode-section">
+					<p>
+						The Satellite API also supports WebSocket connections. Use this if TCP is blocked or unavailable in your
+						environment. Requires Companion 4.3 or later with the Satellite API enabled.
+					</p>
+					<p>
+						Enter the full WebSocket URL below. If Companion is running on the same machine, the default is
+						<code>ws://127.0.0.1:16623</code>.
+					</p>
+					<sdpi-item label="URL" title="Full WebSocket URL for the Satellite API, e.g. ws://127.0.0.1:16623">
+						<sdpi-textfield id="satelliteWsUrl" value="ws://127.0.0.1:16623"></sdpi-textfield>
+					</sdpi-item>
+					<div class="field-hint">Default port is <b>16623</b> — most users should not need to change the port number.</div>
+				</div>
+
+				<!-- Satellite Device ID (shown for both satellite modes) -->
+				<div id="section-device-id" class="mode-section">
+					<p>
+						Each instance of this plugin is identified by a unique Device ID when connecting via the Satellite API. This
+						allows multiple Stream Deck Plugin instances to connect to the same Companion installation simultaneously.
+						You should only need to change this if you have a conflict with another instance, or you want to restore the
+						id from a previous installation of the Elgato software.
+					</p>
+					<sdpi-item
+						label="Device ID"
+						title="Unique hex identifier for this plugin instance — only change this if you have a conflict"
+					>
+						<sdpi-textfield id="satelliteDeviceIdSuffix" pattern="[0-9a-f]{12}" maxlength="12"></sdpi-textfield>
+					</sdpi-item>
+				</div>
+
+				<!-- Legacy -->
+				<div id="section-legacy" class="mode-section">
+					<p>
+						The legacy protocol uses a proprietary WebSocket JSON connection supported by Companion 2.4 and later.
+						<br /><br />
+						<i
+							>This protocol is deprecated and will be removed in a future Companion release. Switch to Satellite TCP if
+							you are running Companion 4.3 or later.</i
+						>
+					</p>
+					<p>Follow these steps to enable the legacy connection in Companion:</p>
+					<p>
+						1. Open Companion's web GUI and go to the <b>Settings</b> tab.<br />
+						2. Scroll down to the <b>Surfaces</b> section.<br />
+						3. Disable the option <b>"Enable connected Streamdecks"</b>. When disabled, support for the Elgato software
+						Plugin will be enabled (requires a Companion restart).<br /><br />
+						<i
+							>Note: disabling this option means Companion will no longer communicate with locally connected Stream Deck
+							hardware on the same machine. Satellite instances are unaffected.</i
+						>
+					</p>
+					<sdpi-item
+						label="IP"
+						title="IP address of the machine running Companion. Use 127.0.0.1 if it is on the same machine."
+					>
+						<sdpi-textfield id="ip" pattern="\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}" value="127.0.0.1"></sdpi-textfield>
+					</sdpi-item>
+					<sdpi-item
+						label="Port"
+						title="Port of the Companion Plugin WebSocket server (should not normally need to be changed)"
+					>
+						<sdpi-textfield id="port" pattern="\d{1,5}" value="28492"></sdpi-textfield>
+					</sdpi-item>
+					<div class="field-hint">Default port is <b>28492</b> — most users should not change this.</div>
+				</div>
+
+				<sdpi-item>
+					<sdpi-button id="save" style="display: block; width: 80px">Save</sdpi-button>
+				</sdpi-item>
 			</div>
 		</div>
 		<script src="js/configuration.js"></script>

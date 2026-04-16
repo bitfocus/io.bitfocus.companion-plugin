@@ -19,8 +19,8 @@ import streamDeck, {
 import imageNotConnected from '../img/actionNotConnected.png'
 import imageLoading from '../img/loadingIcon.png'
 
-import { CompanionConnectionMessages, CompanionKeyAction, connection, FillImageMessage } from '../companion-connection'
-import { bankIndexToRowAndColumn, combineBankNumber, dataToImageUrl, extractRowAndColumn } from '../util'
+import { connection, FillImageMessage } from '../companion-connection'
+import { dataToImageUrl, extractRowAndColumn } from '../util'
 
 interface KeyImageCache {
 	listeners: Map<string, { action: Action<CompanionButtonSettings> }>
@@ -92,55 +92,29 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		this.#propertyInspectorConnectionStatus()
 	}
 
-	#buttonEventProps(settings: CompanionButtonSettings): CompanionKeyAction | null {
-		const page = settings.page
-		const bank = combineBankNumber(settings.row, settings.column)
-
-		console.log(settings.dynamicPage, page, bank)
-		if (connection.supportsCoordinates) {
-			return {
-				page: settings.dynamicPage ? null : settings.page,
-				row: settings.row,
-				column: settings.column,
-			}
-		} else if (settings.dynamicPage && bank != null) {
-			return { keyIndex: bank }
-		} else if (bank != null) {
-			return { page, bank }
-		} else {
-			return null
-		}
+	#buttonEventPage(settings: CompanionButtonSettings): number | null {
+		return settings.dynamicPage ? null : settings.page
 	}
 
 	async onKeyDown(ev: KeyDownEvent<CompanionButtonSettings>): Promise<void> {
-		const props = this.#buttonEventProps(ev.payload.settings)
-		if (!props) return
-
-		connection.apiCommand('keydown', props)
+		const s = ev.payload.settings
+		connection.keyDown(this.#buttonEventPage(s), s.row, s.column)
 	}
 	async onKeyUp(ev: KeyUpEvent<CompanionButtonSettings>): Promise<void> {
-		const props = this.#buttonEventProps(ev.payload.settings)
-		if (!props) return
-
-		connection.apiCommand('keyup', props)
+		const s = ev.payload.settings
+		connection.keyUp(this.#buttonEventPage(s), s.row, s.column)
 	}
 	async onDialRotate(ev: DialRotateEvent<CompanionButtonSettings>): Promise<void> {
-		const props = this.#buttonEventProps(ev.payload.settings)
-		if (!props) return
-
-		connection.apiCommand('rotate', { ...props, ticks: ev.payload.ticks })
+		const s = ev.payload.settings
+		connection.rotate(this.#buttonEventPage(s), s.row, s.column, ev.payload.ticks)
 	}
 	async onDialDown(ev: DialDownEvent<CompanionButtonSettings>): Promise<void> {
-		const props = this.#buttonEventProps(ev.payload.settings)
-		if (!props) return
-
-		connection.apiCommand('keydown', props)
+		const s = ev.payload.settings
+		connection.keyDown(this.#buttonEventPage(s), s.row, s.column)
 	}
 	async onDialUp(ev: DialUpEvent<CompanionButtonSettings>): Promise<void> {
-		const props = this.#buttonEventProps(ev.payload.settings)
-		if (!props) return
-
-		connection.apiCommand('keyup', props)
+		const s = ev.payload.settings
+		connection.keyUp(this.#buttonEventPage(s), s.row, s.column)
 	}
 
 	override async onDidReceiveSettings(ev: DidReceiveSettingsEvent<CompanionButtonSettings>): Promise<void> {
@@ -180,7 +154,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		if (!coords) return
 		const { row, column } = coords
 
-		const imageUrl = data.png ? data.data : dataToImageUrl(data.data.data)
+		const imageUrl = data.png ? data.data : dataToImageUrl(data.data)
 
 		const buttonSettings: CompanionButtonSettings = { dynamicPage: !page, page: page || 0, row, column }
 		const keyId = getKeyIdFromSettings(buttonSettings)
@@ -208,6 +182,25 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		}
 	}
 
+	handleSubscribeError(subId: string | null) {
+		if (subId) {
+			// Specific subscription failed — find matching keyImageListeners entry
+			const existing = this.#keyImageListeners.get(subId)
+			if (existing) {
+				existing.cachedImage = null
+				for (const listener of existing.listeners.values()) {
+					this.#drawImage(listener.action, imageNotConnected)
+				}
+			}
+		} else {
+			// No SUBID — mark all static-page buttons as failed
+			for (const actionItem of this.#actionItems.values()) {
+				if (actionItem.settings.dynamicPage) continue
+				this.#drawImage(actionItem.action, imageNotConnected)
+			}
+		}
+	}
+
 	subscribeAll() {
 		if (!connection.isConnected) return
 
@@ -217,7 +210,12 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	}
 	connectionStateChange() {
 		for (const actionItem of this.#actionItems.values()) {
-			this.#drawImage(actionItem.action, connection.isConnected ? imageLoading : imageNotConnected)
+			// Static-page buttons with subscriptions unavailable cannot work
+			if (!actionItem.settings.dynamicPage && connection.subscriptionsAvailable === false) {
+				this.#drawImage(actionItem.action, imageNotConnected)
+			} else {
+				this.#drawImage(actionItem.action, connection.isConnected ? imageLoading : imageNotConnected)
+			}
 		}
 
 		this.#propertyInspectorConnectionStatus()
@@ -233,10 +231,14 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			connectionStatus = 'connected'
 		}
 
-		streamDeck.settings.setGlobalSettings({
-			ip: connection.address,
-			port: connection.port,
-			connectionStatus: connectionStatus,
+		streamDeck.settings.getGlobalSettings<import('../types/types').GlobalSettings>().then((currentSettings) => {
+			streamDeck.settings.setGlobalSettings({
+				...currentSettings,
+				connectionStatus: connectionStatus,
+				subscriptionsAvailable: connection.subscriptionsAvailable,
+			})
+		}).catch((e) => {
+			streamDeck.logger.warn(`Failed to update connection status: ${e}`)
 		})
 	}
 
@@ -283,20 +285,12 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		}
 	}
 	#sendSubscribeForSettings(settings: CompanionButtonSettings) {
-		if (settings.dynamicPage && !connection.supportsCoordinates) return
-
 		if (connection.isConnected) {
-			const bankNumber = combineBankNumber(settings.row, settings.column)
-			streamDeck.logger.debug(`send subscribe: ${JSON.stringify(settings)} ${bankNumber}`)
-			if (connection.supportsCoordinates) {
-				connection.apiCommand('request_button', {
-					page: settings.dynamicPage ? null : settings.page,
-					row: settings.row,
-					column: settings.column,
-				})
-			} else if (bankNumber !== null) {
-				connection.apiCommand('request_button', { page: settings.page, bank: bankNumber })
-			}
+			const page = settings.dynamicPage ? null : settings.page
+			// Skip static-page subscriptions if the server doesn't support them
+			if (!settings.dynamicPage && connection.subscriptionsAvailable === false) return
+			streamDeck.logger.debug(`send subscribe: ${JSON.stringify(settings)}`)
+			connection.requestButton(page, settings.row, settings.column)
 		}
 	}
 	#unsubscribeAction(action: Action<CompanionButtonSettings>, settings: CompanionButtonSettings) {
@@ -309,14 +303,10 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 		existing.listeners.delete(action.id)
 
-		if (existing.listeners.size === 0 && (!settings.dynamicPage || connection.supportsCoordinates)) {
+		if (existing.listeners.size === 0) {
 			if (connection.isConnected) {
-				const bankNumber = combineBankNumber(settings.row, settings.column)
-				if (connection.supportsCoordinates) {
-					connection.apiCommand('unrequest_button', { page: settings.page, row: settings.row, column: settings.column })
-				} else if (bankNumber !== null) {
-					connection.apiCommand('unrequest_button', { page: settings.page, bank: bankNumber })
-				}
+				const page = settings.dynamicPage ? null : settings.page
+				connection.unrequestButton(page, settings.row, settings.column)
 			}
 
 			if (!settings.dynamicPage) {
