@@ -27,6 +27,11 @@
 				background: #3a2a1a;
 				color: #ccaa66;
 			}
+			.field-hint {
+				font-size: 0.95em;
+				color: #888;
+				margin: -4px 0 6px 90px;
+			}
 		</style>
 	</head>
 
@@ -71,6 +76,7 @@
 					>
 						<sdpi-textfield id="satelliteTcpPort" pattern="\d{1,5}" value="16622"></sdpi-textfield>
 					</sdpi-item>
+					<div class="field-hint">Default port is <b>16622</b> — most users should not change this.</div>
 				</div>
 
 				<!-- Satellite WebSocket -->
@@ -86,6 +92,7 @@
 					<sdpi-item label="URL" title="Full WebSocket URL for the Satellite API, e.g. ws://127.0.0.1:16623">
 						<sdpi-textfield id="satelliteWsUrl" value="ws://127.0.0.1:16623"></sdpi-textfield>
 					</sdpi-item>
+					<div class="field-hint">Default port is <b>16623</b> — most users should not need to change the port number.</div>
 				</div>
 
 				<!-- Satellite Device ID (shown for both satellite modes) -->
@@ -137,6 +144,7 @@
 					>
 						<sdpi-textfield id="port" pattern="\d{1,5}" value="28492"></sdpi-textfield>
 					</sdpi-item>
+					<div class="field-hint">Default port is <b>28492</b> — most users should not change this.</div>
 				</div>
 
 				<sdpi-item>
