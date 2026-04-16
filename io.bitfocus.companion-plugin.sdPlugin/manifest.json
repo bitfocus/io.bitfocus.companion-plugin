@@ -1,7 +1,7 @@
 {
 	"$schema": "../node_modules/@elgato/schemas/streamdeck/plugins/manifest.json",
 	"Name": "Bitfocus Companion Plugin",
-	"Version": "3.2.2.0",
+	"Version": "3.3.0.0",
 	"Author": "Bitfocus AS",
 	"Actions": [
 		{
@@ -43,8 +43,7 @@
 		}
 	],
 	"Nodejs": {
-		"Version": "24",
-		"Debug": "enabled"
+		"Version": "24"
 	},
 	"UUID": "io.bitfocus.companion-plugin",
 	"Profiles": [
