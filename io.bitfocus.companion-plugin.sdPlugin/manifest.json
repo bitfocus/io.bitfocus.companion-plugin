@@ -25,7 +25,7 @@
 	"CategoryIcon": "img/pluginIcon",
 	"CodePath": "bin/plugin.js",
 	"PropertyInspectorPath": "propertyinspector.html",
-	"Description": "This lets you control instances in Companion. You need to install Companion 2.4 or newer from https://bitfocus.io/companion/ first, and enable support for this plugin in the Companion Settings tab to be able to use this plugin.",
+	"Description": "Connect a Stream Deck to Companion, while still allowing other Elgato marketplace plugins to be used.",
 	"Icon": "img/pluginIcon",
 	"URL": "https://bitfocus.io/companion/",
 	"SDKVersion": 3,
