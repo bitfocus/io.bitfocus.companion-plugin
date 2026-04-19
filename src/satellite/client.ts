@@ -173,7 +173,9 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 				this.errorMessage = null
 				this.emit('disconnect')
 			} else {
-				streamDeck.logger.debug(`Satellite: socket closed (was not connected) for ${formatConnectionUrl(this.#connectionDetails)}`)
+				streamDeck.logger.debug(
+					`Satellite: socket closed (was not connected) for ${formatConnectionUrl(this.#connectionDetails)}`
+				)
 			}
 
 			// Schedule reconnect
@@ -253,18 +255,14 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		}
 
 		if (!semverSatisfies(apiVersion, `>=${MINIMUM_PROTOCOL_VERSION}`, { includePrerelease: true })) {
-			streamDeck.logger.warn(
-				`Satellite: ApiVersion ${apiVersion} does not meet minimum ${MINIMUM_PROTOCOL_VERSION}`
-			)
+			streamDeck.logger.warn(`Satellite: ApiVersion ${apiVersion} does not meet minimum ${MINIMUM_PROTOCOL_VERSION}`)
 			this.errorMessage = 'wrongversion'
 			this.emit('wrongversion')
 			this.#client?.destroy()
 			return
 		}
 
-		streamDeck.logger.info(
-			`Satellite: BEGIN CompanionVersion=${params['CompanionVersion']} ApiVersion=${apiVersion}`
-		)
+		streamDeck.logger.info(`Satellite: BEGIN CompanionVersion=${params['CompanionVersion']} ApiVersion=${apiVersion}`)
 
 		// Defer emitting connected until CAPS is received (or timeout fires)
 		this.#pendingConnected = true
@@ -452,7 +450,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 	}
 
 	rotate(page: number | null, row: number, column: number, ticks: number): void {
-		const direction = ticks > 0 ? 'true' : 'false'
+		const direction = ticks > 0 ? '1' : '0'
 		const count = Math.abs(ticks)
 
 		for (let i = 0; i < count; i++) {
