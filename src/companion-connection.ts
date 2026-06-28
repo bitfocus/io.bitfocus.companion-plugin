@@ -277,18 +277,32 @@ class ConnectionManager extends EventEmitter<ConnectionManagerEvents> {
 		})
 		impl.on('fillImage', (data: any) => {
 			if (impl instanceof SatelliteClient) {
-				// Satellite BITMAP fields are raw RGB24 base64 — decode to bytes for dataToImageUrl
 				const satData = data as SatelliteFillImageData
-				const bytes = Buffer.from(satData.data, 'base64')
-				this.emit('fillImage', {
-					page: satData.page,
-					bank: null,
-					keyIndex: undefined,
-					row: satData.row,
-					column: satData.column,
-					png: undefined,
-					data: bytes,
-				})
+				if (satData.data.startsWith('data:')) {
+					// Compressed bitmap (API v1.12+): a self-describing data url (e.g. image/png)
+					// that Stream Deck can render directly — pass it straight through, no decode
+					this.emit('fillImage', {
+						page: satData.page,
+						bank: null,
+						keyIndex: undefined,
+						row: satData.row,
+						column: satData.column,
+						png: true,
+						data: satData.data,
+					})
+				} else {
+					// Raw RGB24 base64 — decode to bytes for dataToImageUrl
+					const bytes = Buffer.from(satData.data, 'base64')
+					this.emit('fillImage', {
+						page: satData.page,
+						bank: null,
+						keyIndex: undefined,
+						row: satData.row,
+						column: satData.column,
+						png: undefined,
+						data: bytes,
+					})
+				}
 			} else {
 				this.emit('fillImage', data as FillImageMessage)
 			}

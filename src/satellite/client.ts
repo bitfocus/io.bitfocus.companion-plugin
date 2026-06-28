@@ -15,11 +15,19 @@ const PING_INTERVAL = 100
 const PING_UNACKED_LIMIT = 50
 const MINIMUM_PROTOCOL_VERSION = '1.10.0'
 
+// Compressed bitmap encodings we can render, in order of preference.
+// Companion advertises which it can stream via the CAPS `BITMAP_FORMATS` field (API v1.12+).
+// We negotiate the first of these that is available, falling back to raw `rgb` otherwise.
+// `png` data urls are rendered directly by Stream Deck, so they need no decoding and avoid
+// the expensive raw-RGB → PNG re-encode in `dataToImageUrl`. We don't request `webp` because
+// Stream Deck cannot be relied upon to render webp data urls.
+const PREFERRED_BITMAP_FORMATS = ['png'] as const
+
 export interface SatelliteFillImageData {
 	page: number | null
 	row: number
 	column: number
-	data: string // raw RGB24 base64
+	data: string // raw RGB24 base64, or a `data:` url for compressed (png) bitmaps
 }
 
 interface SatelliteClientEvents {
@@ -58,6 +66,8 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 
 	// CAPS: whether the server supports subscriptions (ADD-SUB, etc.)
 	#subscriptionsSupported = false
+	// CAPS: compressed bitmap encodings Companion can stream (BITMAP_FORMATS, API v1.12+)
+	#companionBitmapFormats: string[] = []
 	// Deferred connection handshake (wait for CAPS after BEGIN)
 	#pendingConnected = false
 	#capsTimer: ReturnType<typeof setTimeout> | null = null
@@ -71,6 +81,17 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 
 	get subscriptionsSupported(): boolean {
 		return this.#subscriptionsSupported
+	}
+
+	/**
+	 * The compressed bitmap encoding negotiated with Companion, or `rgb` if none is available.
+	 * Compressed bitmaps arrive as self-describing data urls, raw `rgb` as base64 pixel data.
+	 */
+	get #negotiatedBitmapFormat(): 'rgb' | (typeof PREFERRED_BITMAP_FORMATS)[number] {
+		for (const format of PREFERRED_BITMAP_FORMATS) {
+			if (this.#companionBitmapFormats.includes(format)) return format
+		}
+		return 'rgb'
 	}
 
 	constructor(connectionDetails: SomeConnectionDetails, deviceId: string) {
@@ -267,6 +288,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		// Defer emitting connected until CAPS is received (or timeout fires)
 		this.#pendingConnected = true
 		this.#subscriptionsSupported = false
+		this.#companionBitmapFormats = []
 		this.errorMessage = null
 
 		// Defensive fallback: if CAPS never arrives, complete connection after 500ms
@@ -286,6 +308,19 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 
 		this.#subscriptionsSupported = params['SUBSCRIPTIONS'] === '1'
 		streamDeck.logger.info(`Satellite: CAPS SUBSCRIPTIONS=${this.#subscriptionsSupported}`)
+
+		// BITMAP_FORMATS is a comma-separated list of bitmap encodings Companion can stream (API v1.12+)
+		this.#companionBitmapFormats =
+			typeof params['BITMAP_FORMATS'] === 'string'
+				? params['BITMAP_FORMATS']
+						.split(',')
+						.map((f) => f.trim().toLowerCase())
+						.filter(Boolean)
+				: []
+		const negotiatedBitmapFormat = this.#negotiatedBitmapFormat
+		if (negotiatedBitmapFormat !== 'rgb') {
+			streamDeck.logger.info(`Satellite: CAPS supports compressed bitmaps, using '${negotiatedBitmapFormat}'`)
+		}
 
 		this.#completeConnection()
 	}
@@ -398,6 +433,9 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			KEYS_PER_ROW: String(cols),
 			BITMAPS: '72',
 			BRIGHTNESS: '0',
+			// Request a compressed bitmap encoding when one was negotiated (API v1.12+);
+			// omitting it keeps Companion's default raw `rgb` encoding
+			...this.#bitmapFormatArgs(),
 		})
 	}
 
@@ -509,7 +547,16 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			SUBID: subId,
 			LOCATION: subId,
 			BITMAP: '72',
+			// Request the negotiated compressed bitmap encoding for this subscription (API v1.12+)
+			...this.#bitmapFormatArgs(),
 		})
+	}
+
+	// BITMAP_FORMAT parameter for ADD-DEVICE / ADD-SUB, or empty when no compressed
+	// format was negotiated (keeping Companion's default raw `rgb` encoding).
+	#bitmapFormatArgs(): Record<string, string> {
+		const format = this.#negotiatedBitmapFormat
+		return format !== 'rgb' ? { BITMAP_FORMAT: format } : {}
 	}
 
 	// === Message formatting (battle-tested from companion-satellite) ===
