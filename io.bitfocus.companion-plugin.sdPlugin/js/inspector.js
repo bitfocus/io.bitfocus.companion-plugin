@@ -60,7 +60,7 @@ function evaluateConnectionStatus() {
 	companionConnect.classList.remove('caution')
 	companionConnect.classList.remove('info')
 
-	const mode = globalSettings.connectionMode || 'legacy'
+	const mode = globalSettings.connectionMode || 'satellite-tcp'
 	let addressDisplay = ''
 	if (mode === 'satellite-tcp') {
 		addressDisplay = (globalSettings.satelliteTcpHost || '127.0.0.1') + ':' + (globalSettings.satelliteTcpPort || '16622')
@@ -81,7 +81,7 @@ function evaluateConnectionStatus() {
 			} else {
 				companionConnect.innerHTML =
 					'<summary style="color:#a20110;">Incompatible Companion version!</summary>' +
-					'<p>You need to install Companion 2.4 or newer.</p>'
+					'<p>The legacy protocol requires Companion 2.4 up to 4.3. It was removed in Companion 5.0 — switch to Satellite TCP if you are running 5.0 or later.</p>'
 			}
 			companionConnect.classList.add('caution')
 			break
@@ -93,7 +93,8 @@ function evaluateConnectionStatus() {
 			} else {
 				companionConnect.innerHTML =
 					'<summary style="color:#a20110;">Disconnected from Companion!</summary>' +
-					"<p>Make sure you have at least Companion version 2.4.0 or newer running on the same machine and that you have enabled support for the Elgato Plugin in Companion's Settings.</p>"
+					"<p>The legacy protocol was removed in Companion 5.0. If you are running Companion 5.0 or later, switch to Satellite TCP in the plugin configuration.</p>" +
+					"<p>If you are running Companion 4.3 or older, make sure it is running on the same machine and that you have enabled support for the Elgato Plugin in Companion's Settings.</p>"
 			}
 			companionConnect.classList.add('caution')
 			break

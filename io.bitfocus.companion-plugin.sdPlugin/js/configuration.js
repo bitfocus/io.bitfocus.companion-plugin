@@ -52,7 +52,8 @@ function updateModeSections() {
 		warningDiv.textContent = 'Requires Companion 4.3 or later with Satellite API enabled.'
 	} else {
 		warningDiv.className = 'warn-legacy'
-		warningDiv.textContent = 'This protocol is deprecated and will be removed in a future Companion release.'
+		warningDiv.textContent =
+			'This protocol was removed in Companion 5.0. It only works with Companion 4.3 and older — use Satellite TCP for 5.0 and later.'
 	}
 }
 

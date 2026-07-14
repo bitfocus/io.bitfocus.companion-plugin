@@ -50,7 +50,7 @@
 					<sdpi-select id="connectionMode">
 						<option value="satellite-tcp">Satellite TCP (recommended)</option>
 						<option value="satellite-ws">Satellite WebSocket</option>
-						<option value="legacy">Legacy (deprecated)</option>
+						<option value="legacy">Legacy (Companion 4.3 and older only)</option>
 					</sdpi-select>
 				</sdpi-item>
 
@@ -114,14 +114,14 @@
 				<!-- Legacy -->
 				<div id="section-legacy" class="mode-section">
 					<p>
-						The legacy protocol uses a proprietary WebSocket JSON connection supported by Companion 2.4 and later.
+						The legacy protocol uses a proprietary WebSocket JSON connection, supported by Companion 2.4 up to 4.3.
 						<br /><br />
 						<i
-							>This protocol is deprecated and will be removed in a future Companion release. Switch to Satellite TCP if
-							you are running Companion 4.3 or later.</i
+							>This protocol was removed in Companion 5.0 and will not connect to it. Only choose this if you are running
+							Companion 4.3 or older; otherwise use Satellite TCP.</i
 						>
 					</p>
-					<p>Follow these steps to enable the legacy connection in Companion:</p>
+					<p>Follow these steps to enable the legacy connection in Companion 4.3 or older:</p>
 					<p>
 						1. Open Companion's web GUI and go to the <b>Settings</b> tab.<br />
 						2. Scroll down to the <b>Surfaces</b> section.<br />
