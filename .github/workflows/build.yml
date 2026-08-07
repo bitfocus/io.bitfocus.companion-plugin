@@ -1,0 +1,61 @@
+name: Build
+
+on:
+  push:
+    # Branch pushes only. Tag pushes are handled by release.yml, and a
+    # `branches` filter already excludes tags.
+    branches:
+      - '**'
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      # Re-run setup-node now that Corepack/Yarn is available so the Yarn
+      # cache can be resolved and restored.
+      - name: Setup Yarn cache
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Lint (formatting)
+        run: yarn lint
+
+      - name: Type check
+        run: yarn check-types
+
+      - name: Build
+        run: yarn build
+
+      - name: Package Stream Deck plugin
+        run: yarn streamdeck pack io.bitfocus.companion-plugin.sdPlugin --force
+
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: io.bitfocus.companion-plugin
+          path: '*.streamDeckPlugin'
+          if-no-files-found: error

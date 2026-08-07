@@ -6,6 +6,7 @@
 		"pack": "streamdeck pack io.bitfocus.companion-plugin.sdPlugin",
 		"restart": "streamdeck restart io.bitfocus.companion-plugin",
 		"format": "prettier -w .",
+		"lint": "prettier --check .",
 		"check-types": "tsc --noEmit",
 		"vendor": "node scripts/download-vendor.mjs"
 	},
