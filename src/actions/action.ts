@@ -231,15 +231,18 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			connectionStatus = 'connected'
 		}
 
-		streamDeck.settings.getGlobalSettings<import('../types/types').GlobalSettings>().then((currentSettings) => {
-			streamDeck.settings.setGlobalSettings({
-				...currentSettings,
-				connectionStatus: connectionStatus,
-				subscriptionsAvailable: connection.subscriptionsAvailable,
+		streamDeck.settings
+			.getGlobalSettings<import('../types/types').GlobalSettings>()
+			.then((currentSettings) => {
+				streamDeck.settings.setGlobalSettings({
+					...currentSettings,
+					connectionStatus: connectionStatus,
+					subscriptionsAvailable: connection.subscriptionsAvailable,
+				})
 			})
-		}).catch((e) => {
-			streamDeck.logger.warn(`Failed to update connection status: ${e}`)
-		})
+			.catch((e) => {
+				streamDeck.logger.warn(`Failed to update connection status: ${e}`)
+			})
 	}
 
 	#drawImage(action: Action<CompanionButtonSettings>, image: string) {

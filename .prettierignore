@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+.yarn/
+yarn.lock
+
+# Build output / generated
+*.sdPlugin/bin/
+*.sdPlugin/logs/
+*.streamDeckPlugin
+
+# Third-party vendored code
+*.sdPlugin/js/vendor/

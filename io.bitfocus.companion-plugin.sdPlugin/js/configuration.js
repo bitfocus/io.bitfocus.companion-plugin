@@ -2,7 +2,7 @@
 const globalSettings = window.opener.getGlobalSettings()
 
 // Hack in titles for the items
-const items = document.querySelectorAll("sdpi-item")
+const items = document.querySelectorAll('sdpi-item')
 for (const item of items) {
 	if (item.hasAttribute('title')) {
 		const labelElm = item.querySelector('label')

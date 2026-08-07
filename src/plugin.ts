@@ -43,16 +43,34 @@ streamDeck.settings.onDidReceiveGlobalSettings((settings: DidReceiveGlobalSettin
 	}
 
 	// Ensure defaults
-	if (!s.ip) { s.ip = '127.0.0.1'; needsSave = true }
-	if (!s.port) { s.port = 28492; needsSave = true }
-	if (!s.satelliteTcpHost) { s.satelliteTcpHost = '127.0.0.1'; needsSave = true }
-	if (!s.satelliteTcpPort) { s.satelliteTcpPort = 16622; needsSave = true }
-	if (!s.satelliteWsUrl) { s.satelliteWsUrl = 'ws://127.0.0.1:16623'; needsSave = true }
+	if (!s.ip) {
+		s.ip = '127.0.0.1'
+		needsSave = true
+	}
+	if (!s.port) {
+		s.port = 28492
+		needsSave = true
+	}
+	if (!s.satelliteTcpHost) {
+		s.satelliteTcpHost = '127.0.0.1'
+		needsSave = true
+	}
+	if (!s.satelliteTcpPort) {
+		s.satelliteTcpPort = 16622
+		needsSave = true
+	}
+	if (!s.satelliteWsUrl) {
+		s.satelliteWsUrl = 'ws://127.0.0.1:16623'
+		needsSave = true
+	}
 	if (!s.satelliteDeviceIdSuffix) {
 		s.satelliteDeviceIdSuffix = randomBytes(6).toString('hex')
 		needsSave = true
 	}
-	if (!s.connectionStatus) { s.connectionStatus = ''; needsSave = true }
+	if (!s.connectionStatus) {
+		s.connectionStatus = ''
+		needsSave = true
+	}
 
 	if (needsSave) {
 		streamDeck.settings.setGlobalSettings(s).catch((e) => {
@@ -82,7 +100,9 @@ streamDeck.settings.onDidReceiveGlobalSettings((settings: DidReceiveGlobalSettin
 	const deviceId = `elgato-plugin:${s.satelliteDeviceIdSuffix}`
 
 	if (s.connectionMode === 'satellite-tcp') {
-		streamDeck.logger.info(`Connection mode: ${prevMode} → satellite-tcp (${s.satelliteTcpHost}:${s.satelliteTcpPort}, device=${deviceId})`)
+		streamDeck.logger.info(
+			`Connection mode: ${prevMode} → satellite-tcp (${s.satelliteTcpHost}:${s.satelliteTcpPort}, device=${deviceId})`
+		)
 		connection.setConnectionMode({
 			mode: 'satellite-tcp',
 			host: s.satelliteTcpHost,

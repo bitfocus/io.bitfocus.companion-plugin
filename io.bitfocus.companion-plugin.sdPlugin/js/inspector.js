@@ -63,7 +63,8 @@ function evaluateConnectionStatus() {
 	const mode = globalSettings.connectionMode || 'satellite-tcp'
 	let addressDisplay = ''
 	if (mode === 'satellite-tcp') {
-		addressDisplay = (globalSettings.satelliteTcpHost || '127.0.0.1') + ':' + (globalSettings.satelliteTcpPort || '16622')
+		addressDisplay =
+			(globalSettings.satelliteTcpHost || '127.0.0.1') + ':' + (globalSettings.satelliteTcpPort || '16622')
 	} else if (mode === 'satellite-ws') {
 		addressDisplay = globalSettings.satelliteWsUrl || 'ws://127.0.0.1:16623'
 	} else {
@@ -89,11 +90,11 @@ function evaluateConnectionStatus() {
 			if (isSatellite) {
 				companionConnect.innerHTML =
 					'<summary style="color:#a20110;">Disconnected from Companion!</summary>' +
-					'<p>Make sure Companion 4.3 or later is running and the Satellite API is enabled in Companion\'s Settings.</p>'
+					"<p>Make sure Companion 4.3 or later is running and the Satellite API is enabled in Companion's Settings.</p>"
 			} else {
 				companionConnect.innerHTML =
 					'<summary style="color:#a20110;">Disconnected from Companion!</summary>' +
-					"<p>The legacy protocol was removed in Companion 5.0. If you are running Companion 5.0 or later, switch to Satellite TCP in the plugin configuration.</p>" +
+					'<p>The legacy protocol was removed in Companion 5.0. If you are running Companion 5.0 or later, switch to Satellite TCP in the plugin configuration.</p>' +
 					"<p>If you are running Companion 4.3 or older, make sure it is running on the same machine and that you have enabled support for the Elgato Plugin in Companion's Settings.</p>"
 			}
 			companionConnect.classList.add('caution')
@@ -101,12 +102,16 @@ function evaluateConnectionStatus() {
 		case 'connecting':
 			companionConnect.innerHTML =
 				'<summary style="color:#ffcc00;">Connecting to Companion...</summary>' +
-				'<p>Attempting to connect to Companion at ' + addressDisplay + '</p>'
+				'<p>Attempting to connect to Companion at ' +
+				addressDisplay +
+				'</p>'
 			break
 		case 'connected':
 			companionConnect.innerHTML =
 				'<summary style="color:#009900;">Connected to Companion.</summary>' +
-				'<p>Connected to Companion at ' + addressDisplay + '</p>'
+				'<p>Connected to Companion at ' +
+				addressDisplay +
+				'</p>'
 			companionConnect.classList.add('info')
 			break
 		default:

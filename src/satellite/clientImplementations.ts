@@ -13,9 +13,7 @@ export interface ICompanionSatelliteClient {
 	on(event: 'close', listener: () => void): this
 }
 
-export type SomeConnectionDetails =
-	| { type: 'tcp'; host: string; port: number }
-	| { type: 'ws'; url: string }
+export type SomeConnectionDetails = { type: 'tcp'; host: string; port: number } | { type: 'ws'; url: string }
 
 export function formatConnectionUrl(connectionDetails: SomeConnectionDetails): string {
 	switch (connectionDetails.type) {
