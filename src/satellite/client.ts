@@ -55,6 +55,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 	#client: ICompanionSatelliteClient | null = null
 	#connectionDetails: SomeConnectionDetails
 	#deviceId: string
+	#productName: string
 	#reconnectTimer: ReturnType<typeof setTimeout> | null = null
 	#pingInterval: ReturnType<typeof setInterval> | null = null
 	#receivedBuffer = ''
@@ -94,10 +95,11 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		return 'rgb'
 	}
 
-	constructor(connectionDetails: SomeConnectionDetails, deviceId: string) {
+	constructor(connectionDetails: SomeConnectionDetails, deviceId: string, productName = 'Elgato Stream Deck Plugin') {
 		super()
 		this.#connectionDetails = connectionDetails
 		this.#deviceId = deviceId
+		this.#productName = productName
 	}
 
 	connect(): void {
@@ -428,7 +430,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		this.#registeredSurface = { rows, cols }
 		this.#sendMessage('ADD-DEVICE', {
 			DEVICEID: this.#deviceId,
-			PRODUCT_NAME: 'Elgato Stream Deck Plugin',
+			PRODUCT_NAME: this.#productName,
 			KEYS_TOTAL: String(rows * cols),
 			KEYS_PER_ROW: String(cols),
 			BITMAPS: '72',
