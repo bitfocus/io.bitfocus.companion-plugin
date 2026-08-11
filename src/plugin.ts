@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto'
 import { connection } from './companion-connection'
 
 import { CompanionButtonAction } from './actions/action'
+import { ReconnectCompanionAction } from './actions/reconnect'
 
 // We can enable "trace" logging so that all messages between the Stream Deck, and the plugin are recorded. When storing sensitive information
 streamDeck.logger.setLevel('debug')
@@ -13,6 +14,7 @@ streamDeck.logger.setLevel('debug')
 // Register the actions.
 const mainAction = new CompanionButtonAction()
 streamDeck.actions.registerAction(mainAction)
+streamDeck.actions.registerAction(new ReconnectCompanionAction())
 
 // Finally, connect to the Stream Deck.
 streamDeck.connect()

@@ -423,6 +423,19 @@ class MultiConnectionManager extends EventEmitter<MultiConnectionManagerEvents> 
 		this.#deviceNames.delete(deviceId)
 	}
 
+	reconnectAll(): void {
+		if (!this.#options) {
+			streamDeck.logger.warn('Manual reconnect ignored: connection settings are not available')
+			return
+		}
+
+		streamDeck.logger.info(`Manual reconnect requested for ${this.#connections.size} Companion surfaces`)
+		for (const [deviceId, deviceConnection] of this.#connections) {
+			deviceConnection.removeAllListeners()
+			this.#configureConnection(deviceId, deviceConnection)
+		}
+	}
+
 	#configureConnection(deviceId: string, deviceConnection: ConnectionManager): void {
 		if (!this.#options) return
 		this.#wireEvents(deviceId, deviceConnection)
