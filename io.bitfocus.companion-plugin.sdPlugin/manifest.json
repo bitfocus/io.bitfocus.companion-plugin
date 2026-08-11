@@ -19,6 +19,20 @@
 					"Image": "img/loadingIcon"
 				}
 			]
+		},
+		{
+			"Name": "Reconnect Companion Surfaces",
+			"UUID": "io.bitfocus.companion-plugin.reconnect",
+			"Icon": "img/actionIcon",
+			"Tooltip": "Reconnect all Stream Deck Companion surfaces",
+			"Controllers": ["Keypad"],
+			"SupportedInMultiActions": true,
+			"States": [
+				{
+					"Image": "img/actionIcon",
+					"Title": "RECONNECT\nCOMPANION"
+				}
+			]
 		}
 	],
 	"Category": "Bitfocus Companion Plugin",

@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events'
 import { WebSocket } from 'ws'
 import { SatelliteClient, SatelliteFillImageData } from './satellite/client'
 import { ConnectionMode } from './types/types'
+import { createHash } from 'node:crypto'
 
 export type FillImageMessage = {
 	page: number | null
@@ -19,6 +20,15 @@ interface ConnectionManagerEvents {
 	fillImage: [data: FillImageMessage]
 	clearAllKeys: []
 	subscribeError: [subId: string | null]
+}
+
+interface MultiConnectionManagerEvents {
+	connected: [deviceId: string]
+	disconnect: [deviceId: string]
+	wrongversion: [deviceId: string]
+	fillImage: [deviceId: string, data: FillImageMessage]
+	clearAllKeys: [deviceId: string]
+	subscribeError: [deviceId: string, subId: string | null]
 }
 
 // ==================== Legacy Connection ====================
@@ -213,8 +223,13 @@ class LegacyConnection extends EventEmitter<LegacyConnectionEvents> {
 // ==================== Connection Manager ====================
 
 export type ConnectionOptions =
-	| { mode: 'satellite-tcp'; host: string; port: number; deviceId: string }
-	| { mode: 'satellite-ws'; url: string; deviceId: string }
+	| { mode: 'satellite-tcp'; host: string; port: number; deviceId: string; productName: string }
+	| { mode: 'satellite-ws'; url: string; deviceId: string; productName: string }
+	| { mode: 'legacy'; ip: string; port: number }
+
+export type MultiConnectionOptions =
+	| { mode: 'satellite-tcp'; host: string; port: number; deviceIdPrefix: string }
+	| { mode: 'satellite-ws'; url: string; deviceIdPrefix: string }
 	| { mode: 'legacy'; ip: string; port: number }
 
 class ConnectionManager extends EventEmitter<ConnectionManagerEvents> {
@@ -224,6 +239,13 @@ class ConnectionManager extends EventEmitter<ConnectionManagerEvents> {
 	public isConnected = false
 	public errorMessage: 'wrongversion' | null = null
 	public subscriptionsAvailable = false
+
+	destroy(): void {
+		this.#impl?.removeAllListeners()
+		this.#impl?.destroy()
+		this.#impl = null
+		this.isConnected = false
+	}
 
 	setConnectionMode(options: ConnectionOptions): void {
 		// Tear down existing
@@ -245,12 +267,16 @@ class ConnectionManager extends EventEmitter<ConnectionManagerEvents> {
 			this.#wireEvents(legacy)
 			legacy.connect()
 		} else if (options.mode === 'satellite-tcp') {
-			const client = new SatelliteClient({ type: 'tcp', host: options.host, port: options.port }, options.deviceId)
+			const client = new SatelliteClient(
+				{ type: 'tcp', host: options.host, port: options.port },
+				options.deviceId,
+				options.productName
+			)
 			this.#impl = client
 			this.#wireEvents(client)
 			client.connect()
 		} else if (options.mode === 'satellite-ws') {
-			const client = new SatelliteClient({ type: 'ws', url: options.url }, options.deviceId)
+			const client = new SatelliteClient({ type: 'ws', url: options.url }, options.deviceId, options.productName)
 			this.#impl = client
 			this.#wireEvents(client)
 			client.connect()
@@ -356,4 +382,117 @@ class ConnectionManager extends EventEmitter<ConnectionManagerEvents> {
 	}
 }
 
-export const connection = new ConnectionManager()
+type DeviceConnectionOptions =
+	| { mode: 'satellite-tcp'; host: string; port: number; deviceId: string; productName: string }
+	| { mode: 'satellite-ws'; url: string; deviceId: string; productName: string }
+	| { mode: 'legacy'; ip: string; port: number }
+
+/**
+ * Maintains an independent Companion surface connection for every physical
+ * Stream Deck that contains at least one Companion action.
+ */
+class MultiConnectionManager extends EventEmitter<MultiConnectionManagerEvents> {
+	#connections = new Map<string, ConnectionManager>()
+	#deviceNames = new Map<string, string>()
+	#options: MultiConnectionOptions | null = null
+
+	setConnectionMode(options: MultiConnectionOptions): void {
+		this.#options = options
+		for (const [deviceId, connection] of this.#connections) {
+			connection.removeAllListeners()
+			this.#configureConnection(deviceId, connection)
+		}
+	}
+
+	ensureDevice(deviceId: string, productName: string): void {
+		this.#deviceNames.set(deviceId, productName)
+		if (this.#connections.has(deviceId)) return
+
+		const deviceConnection = new ConnectionManager()
+		this.#connections.set(deviceId, deviceConnection)
+		this.#wireEvents(deviceId, deviceConnection)
+		this.#configureConnection(deviceId, deviceConnection)
+	}
+
+	removeDevice(deviceId: string): void {
+		const deviceConnection = this.#connections.get(deviceId)
+		if (!deviceConnection) return
+		deviceConnection.removeAllListeners()
+		deviceConnection.destroy()
+		this.#connections.delete(deviceId)
+		this.#deviceNames.delete(deviceId)
+	}
+
+	reconnectAll(): void {
+		if (!this.#options) {
+			streamDeck.logger.warn('Manual reconnect ignored: connection settings are not available')
+			return
+		}
+
+		streamDeck.logger.info(`Manual reconnect requested for ${this.#connections.size} Companion surfaces`)
+		for (const [deviceId, deviceConnection] of this.#connections) {
+			deviceConnection.removeAllListeners()
+			this.#configureConnection(deviceId, deviceConnection)
+		}
+	}
+
+	#configureConnection(deviceId: string, deviceConnection: ConnectionManager): void {
+		if (!this.#options) return
+		this.#wireEvents(deviceId, deviceConnection)
+		deviceConnection.setConnectionMode(this.#deviceOptions(deviceId))
+	}
+
+	#deviceOptions(deviceId: string): DeviceConnectionOptions {
+		if (!this.#options) throw new Error('Connection settings are not available')
+		const options = this.#options
+		if (options.mode === 'legacy') return options
+
+		const stableDeviceSuffix = createHash('sha256').update(deviceId).digest('hex').slice(0, 12)
+		const satelliteDeviceId = `${options.deviceIdPrefix}:${stableDeviceSuffix}`
+		const productName = this.#deviceNames.get(deviceId) || 'Elgato Stream Deck'
+
+		return options.mode === 'satellite-tcp'
+			? { ...options, deviceId: satelliteDeviceId, productName }
+			: { ...options, deviceId: satelliteDeviceId, productName }
+	}
+
+	#wireEvents(deviceId: string, deviceConnection: ConnectionManager): void {
+		deviceConnection.removeAllListeners()
+		deviceConnection.on('connected', () => this.emit('connected', deviceId))
+		deviceConnection.on('disconnect', () => this.emit('disconnect', deviceId))
+		deviceConnection.on('wrongversion', () => this.emit('wrongversion', deviceId))
+		deviceConnection.on('fillImage', (data) => this.emit('fillImage', deviceId, data))
+		deviceConnection.on('clearAllKeys', () => this.emit('clearAllKeys', deviceId))
+		deviceConnection.on('subscribeError', (subId) => this.emit('subscribeError', deviceId, subId))
+	}
+
+	isConnected(deviceId: string): boolean {
+		return this.#connections.get(deviceId)?.isConnected ?? false
+	}
+
+	errorMessage(deviceId: string): 'wrongversion' | null {
+		return this.#connections.get(deviceId)?.errorMessage ?? null
+	}
+
+	subscriptionsAvailable(deviceId: string): boolean {
+		return this.#connections.get(deviceId)?.subscriptionsAvailable ?? false
+	}
+
+	keyDown(deviceId: string, page: number | null, row: number, column: number): void {
+		this.#connections.get(deviceId)?.keyDown(page, row, column)
+	}
+	keyUp(deviceId: string, page: number | null, row: number, column: number): void {
+		this.#connections.get(deviceId)?.keyUp(page, row, column)
+	}
+	rotate(deviceId: string, page: number | null, row: number, column: number, ticks: number): void {
+		this.#connections.get(deviceId)?.rotate(page, row, column, ticks)
+	}
+	requestButton(deviceId: string, page: number | null, row: number, column: number): void {
+		this.#connections.get(deviceId)?.requestButton(page, row, column)
+	}
+	unrequestButton(deviceId: string, page: number | null, row: number, column: number): void {
+		this.#connections.get(deviceId)?.unrequestButton(page, row, column)
+	}
+}
+
+export const connection = new MultiConnectionManager()

@@ -12,6 +12,7 @@ import streamDeck, {
 	PropertyInspectorDidAppearEvent,
 	SingletonAction,
 	TitleParametersDidChangeEvent,
+	TouchTapEvent,
 	WillAppearEvent,
 	WillDisappearEvent,
 } from '@elgato/streamdeck'
@@ -28,13 +29,19 @@ interface KeyImageCache {
 	cachedImage: string | null
 }
 
+const STREAM_DECK_PLUS_TOUCH_ROW = 2
+const STREAM_DECK_PLUS_DIAL_ROW = 3
+
 /**
  * An example action class that displays a count that increments by one each time the button is pressed.
  */
 @action({ UUID: 'io.bitfocus.companion-plugin.action' })
 export class CompanionButtonAction extends SingletonAction<CompanionButtonSettings> {
 	#keyImageListeners = new Map<string, KeyImageCache>()
-	#actionItems = new Map<string, { action: Action<CompanionButtonSettings>; settings: CompanionButtonSettings }>()
+	#actionItems = new Map<
+		string,
+		{ action: Action<CompanionButtonSettings>; settings: CompanionButtonSettings; deviceId: string }
+	>()
 
 	override async onWillAppear(ev: WillAppearEvent<CompanionButtonSettings>): Promise<void> {
 		streamDeck.logger.debug(`onWillAppear ${JSON.stringify(ev)}`)
@@ -72,11 +79,13 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 		await ev.action.setSettings(ev.payload.settings)
 
-		this.#drawImage(ev.action, connection.isConnected ? imageLoading : imageNotConnected)
+		const deviceId = ev.action.device.id
+		connection.ensureDevice(deviceId, ev.action.device.name)
+		this.#drawImage(ev.action, connection.isConnected(deviceId) ? imageLoading : imageNotConnected)
 
-		this.#actionItems.set(ev.action.id, { action: ev.action, settings: ev.payload.settings })
+		this.#actionItems.set(ev.action.id, { action: ev.action, settings: ev.payload.settings, deviceId })
 
-		this.#subscribeAction(ev.action, ev.payload.settings)
+		this.#subscribeAction(deviceId, ev.action, this.#displaySettings(ev.action, ev.payload.settings))
 	}
 
 	async onWillDisappear(ev: WillDisappearEvent<CompanionButtonSettings>): Promise<void> {
@@ -84,12 +93,19 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		this.#actionItems.delete(ev.action.id)
 
 		if (actionItem) {
-			this.#unsubscribeAction(actionItem.action, actionItem.settings)
+			this.#unsubscribeAction(
+				actionItem.deviceId,
+				actionItem.action,
+				this.#displaySettings(actionItem.action, actionItem.settings)
+			)
+
+			const deviceStillInUse = [...this.#actionItems.values()].some((item) => item.deviceId === actionItem.deviceId)
+			if (!deviceStillInUse) connection.removeDevice(actionItem.deviceId)
 		}
 	}
 
 	async onPropertyInspectorDidAppear(ev: PropertyInspectorDidAppearEvent<CompanionButtonSettings>): Promise<void> {
-		this.#propertyInspectorConnectionStatus()
+		this.#propertyInspectorConnectionStatus(ev.action.device.id)
 	}
 
 	#buttonEventPage(settings: CompanionButtonSettings): number | null {
@@ -98,23 +114,33 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 	async onKeyDown(ev: KeyDownEvent<CompanionButtonSettings>): Promise<void> {
 		const s = ev.payload.settings
-		connection.keyDown(this.#buttonEventPage(s), s.row, s.column)
+		connection.keyDown(ev.action.device.id, this.#buttonEventPage(s), s.row, s.column)
 	}
 	async onKeyUp(ev: KeyUpEvent<CompanionButtonSettings>): Promise<void> {
 		const s = ev.payload.settings
-		connection.keyUp(this.#buttonEventPage(s), s.row, s.column)
+		connection.keyUp(ev.action.device.id, this.#buttonEventPage(s), s.row, s.column)
 	}
 	async onDialRotate(ev: DialRotateEvent<CompanionButtonSettings>): Promise<void> {
 		const s = ev.payload.settings
-		connection.rotate(this.#buttonEventPage(s), s.row, s.column, ev.payload.ticks)
+		connection.rotate(ev.action.device.id, this.#buttonEventPage(s), s.row, s.column, ev.payload.ticks)
 	}
 	async onDialDown(ev: DialDownEvent<CompanionButtonSettings>): Promise<void> {
 		const s = ev.payload.settings
-		connection.keyDown(this.#buttonEventPage(s), s.row, s.column)
+		connection.keyDown(ev.action.device.id, this.#buttonEventPage(s), s.row, s.column)
 	}
 	async onDialUp(ev: DialUpEvent<CompanionButtonSettings>): Promise<void> {
 		const s = ev.payload.settings
-		connection.keyUp(this.#buttonEventPage(s), s.row, s.column)
+		connection.keyUp(ev.action.device.id, this.#buttonEventPage(s), s.row, s.column)
+	}
+	async onTouchTap(ev: TouchTapEvent<CompanionButtonSettings>): Promise<void> {
+		const s = ev.payload.settings
+		const row = s.row === STREAM_DECK_PLUS_DIAL_ROW ? STREAM_DECK_PLUS_TOUCH_ROW : s.row
+		const page = this.#buttonEventPage(s)
+
+		// Stream Deck sends touchTap as a completed gesture rather than separate
+		// down/up events. Emit a complete Companion press for the LCD button.
+		connection.keyDown(ev.action.device.id, page, row, s.column)
+		connection.keyUp(ev.action.device.id, page, row, s.column)
 	}
 
 	override async onDidReceiveSettings(ev: DidReceiveSettingsEvent<CompanionButtonSettings>): Promise<void> {
@@ -131,18 +157,41 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 		// unsubscribe old settings
 		const oldActionItem = this.#actionItems.get(ev.action.id)
-		if (oldActionItem) this.#unsubscribeAction(ev.action, oldActionItem.settings)
+		if (oldActionItem) {
+			this.#unsubscribeAction(
+				oldActionItem.deviceId,
+				ev.action,
+				this.#displaySettings(ev.action, oldActionItem.settings)
+			)
+		}
 
 		// subscribe new settings
-		this.#actionItems.set(ev.action.id, { action: ev.action, settings: ev.payload.settings })
-		this.#subscribeAction(ev.action, ev.payload.settings)
+		const deviceId = ev.action.device.id
+		connection.ensureDevice(deviceId, ev.action.device.name)
+		this.#actionItems.set(ev.action.id, { action: ev.action, settings: ev.payload.settings, deviceId })
+		this.#subscribeAction(deviceId, ev.action, this.#displaySettings(ev.action, ev.payload.settings))
+	}
+
+	#displaySettings(
+		action: Action<CompanionButtonSettings>,
+		settings: CompanionButtonSettings
+	): CompanionButtonSettings {
+		// A Stream Deck + encoder occupies one SDK action slot for both its LCD
+		// segment and physical dial. Companion convention uses row 3 for the LCD
+		// navigation button and row 4 for the dial. Keep dial input on row 4 while
+		// subscribing/drawing its paired LCD segment from row 3.
+		if (action.isDial() && settings.row === STREAM_DECK_PLUS_DIAL_ROW) {
+			return { ...settings, row: STREAM_DECK_PLUS_TOUCH_ROW }
+		}
+
+		return settings
 	}
 
 	async onTitleParametersDidChange(ev: TitleParametersDidChangeEvent<CompanionButtonSettings>): Promise<void> {
 		await ev.action.setTitle('')
 	}
 
-	receiveImage(data: FillImageMessage) {
+	receiveImage(deviceId: string, data: FillImageMessage) {
 		// streamDeck.logger.debug(`got image: ${JSON.stringify(data)}`)
 
 		const page = data.page
@@ -157,7 +206,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		const imageUrl = data.png ? data.data : dataToImageUrl(data.data)
 
 		const buttonSettings: CompanionButtonSettings = { dynamicPage: !page, page: page || 0, row, column }
-		const keyId = getKeyIdFromSettings(buttonSettings)
+		const keyId = getKeyIdFromSettings(deviceId, buttonSettings)
 
 		const existing = this.#keyImageListeners.get(keyId)
 		if (existing) {
@@ -175,17 +224,18 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		}
 	}
 
-	clearAllDynamicKeys() {
+	clearAllDynamicKeys(deviceId: string) {
 		for (const actionItem of this.#actionItems.values()) {
+			if (actionItem.deviceId !== deviceId) continue
 			if (!actionItem.settings.dynamicPage) continue
-			this.#drawImage(actionItem.action, connection.isConnected ? imageLoading : imageNotConnected)
+			this.#drawImage(actionItem.action, connection.isConnected(deviceId) ? imageLoading : imageNotConnected)
 		}
 	}
 
-	handleSubscribeError(subId: string | null) {
+	handleSubscribeError(deviceId: string, subId: string | null) {
 		if (subId) {
 			// Specific subscription failed — find matching keyImageListeners entry
-			const existing = this.#keyImageListeners.get(subId)
+			const existing = this.#keyImageListeners.get(`${deviceId}/${subId}`)
 			if (existing) {
 				existing.cachedImage = null
 				for (const listener of existing.listeners.values()) {
@@ -195,39 +245,43 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		} else {
 			// No SUBID — mark all static-page buttons as failed
 			for (const actionItem of this.#actionItems.values()) {
+				if (actionItem.deviceId !== deviceId) continue
 				if (actionItem.settings.dynamicPage) continue
 				this.#drawImage(actionItem.action, imageNotConnected)
 			}
 		}
 	}
 
-	subscribeAll() {
-		if (!connection.isConnected) return
+	subscribeAll(deviceId: string) {
+		if (!connection.isConnected(deviceId)) return
 
-		for (const item of this.#keyImageListeners.values()) {
-			this.#sendSubscribeForSettings(item.settings)
+		for (const [keyId, item] of this.#keyImageListeners) {
+			if (!keyId.startsWith(`${deviceId}/`)) continue
+			this.#sendSubscribeForSettings(deviceId, item.settings)
 		}
 	}
-	connectionStateChange() {
+	connectionStateChange(deviceId: string) {
 		for (const actionItem of this.#actionItems.values()) {
+			if (actionItem.deviceId !== deviceId) continue
 			// Static-page buttons with subscriptions unavailable cannot work
-			if (!actionItem.settings.dynamicPage && connection.subscriptionsAvailable === false) {
+			if (!actionItem.settings.dynamicPage && connection.subscriptionsAvailable(deviceId) === false) {
 				this.#drawImage(actionItem.action, imageNotConnected)
 			} else {
-				this.#drawImage(actionItem.action, connection.isConnected ? imageLoading : imageNotConnected)
+				this.#drawImage(actionItem.action, connection.isConnected(deviceId) ? imageLoading : imageNotConnected)
 			}
 		}
 
-		this.#propertyInspectorConnectionStatus()
+		this.#propertyInspectorConnectionStatus(deviceId)
 	}
 
-	#propertyInspectorConnectionStatus() {
+	#propertyInspectorConnectionStatus(deviceId: string) {
 		if (!streamDeck.ui.action) return
+		if (streamDeck.ui.action.device.id !== deviceId) return
 
-		let connectionStatus: string | null = connection.errorMessage
-		if (!connectionStatus && !connection.isConnected) {
+		let connectionStatus: string | null = connection.errorMessage(deviceId)
+		if (!connectionStatus && !connection.isConnected(deviceId)) {
 			connectionStatus = 'disconnected'
-		} else if (connection.isConnected) {
+		} else if (connection.isConnected(deviceId)) {
 			connectionStatus = 'connected'
 		}
 
@@ -237,7 +291,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 				streamDeck.settings.setGlobalSettings({
 					...currentSettings,
 					connectionStatus: connectionStatus,
-					subscriptionsAvailable: connection.subscriptionsAvailable,
+					subscriptionsAvailable: connection.subscriptionsAvailable(deviceId),
 				})
 			})
 			.catch((e) => {
@@ -261,8 +315,8 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		}
 	}
 
-	#subscribeAction(action: Action<CompanionButtonSettings>, settings: CompanionButtonSettings) {
-		const keyId = getKeyIdFromSettings(settings)
+	#subscribeAction(deviceId: string, action: Action<CompanionButtonSettings>, settings: CompanionButtonSettings) {
+		const keyId = getKeyIdFromSettings(deviceId, settings)
 
 		streamDeck.logger.debug(`do sub ${keyId}`)
 
@@ -284,22 +338,22 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			this.#keyImageListeners.set(keyId, newListeners)
 
 			// send subscribe
-			this.#sendSubscribeForSettings(settings)
+			this.#sendSubscribeForSettings(deviceId, settings)
 		}
 	}
-	#sendSubscribeForSettings(settings: CompanionButtonSettings) {
-		if (connection.isConnected) {
+	#sendSubscribeForSettings(deviceId: string, settings: CompanionButtonSettings) {
+		if (connection.isConnected(deviceId)) {
 			const page = settings.dynamicPage ? null : settings.page
 			// Skip static-page subscriptions if the server doesn't support them
-			if (!settings.dynamicPage && connection.subscriptionsAvailable === false) return
+			if (!settings.dynamicPage && connection.subscriptionsAvailable(deviceId) === false) return
 			streamDeck.logger.debug(`send subscribe: ${JSON.stringify(settings)}`)
-			connection.requestButton(page, settings.row, settings.column)
+			connection.requestButton(deviceId, page, settings.row, settings.column)
 		}
 	}
-	#unsubscribeAction(action: Action<CompanionButtonSettings>, settings: CompanionButtonSettings) {
-		const keyId = getKeyIdFromSettings(settings)
+	#unsubscribeAction(deviceId: string, action: Action<CompanionButtonSettings>, settings: CompanionButtonSettings) {
+		const keyId = getKeyIdFromSettings(deviceId, settings)
 
-		this.#drawImage(action, connection.isConnected ? imageLoading : imageNotConnected)
+		this.#drawImage(action, connection.isConnected(deviceId) ? imageLoading : imageNotConnected)
 
 		const existing = this.#keyImageListeners.get(keyId)
 		if (!existing) return
@@ -307,9 +361,9 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		existing.listeners.delete(action.id)
 
 		if (existing.listeners.size === 0) {
-			if (connection.isConnected) {
+			if (connection.isConnected(deviceId)) {
 				const page = settings.dynamicPage ? null : settings.page
-				connection.unrequestButton(page, settings.row, settings.column)
+				connection.unrequestButton(deviceId, page, settings.row, settings.column)
 			}
 
 			if (!settings.dynamicPage) {
@@ -319,10 +373,10 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	}
 }
 
-function getKeyIdFromSettings(settings: CompanionButtonSettings) {
+function getKeyIdFromSettings(deviceId: string, settings: CompanionButtonSettings) {
 	// const coordinates = buttonselector.split(/:/);
 	// return parseInt(coordinates[0]) - 1 + (parseInt(coordinates[1]) - 1) * 8;
-	return `${settings.dynamicPage ? 'dynamic' : settings.page}/${settings.row}/${settings.column}`
+	return `${deviceId}/${settings.dynamicPage ? 'dynamic' : settings.page}/${settings.row}/${settings.column}`
 }
 
 /**

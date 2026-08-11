@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto'
 import { connection } from './companion-connection'
 
 import { CompanionButtonAction } from './actions/action'
+import { ReconnectCompanionAction } from './actions/reconnect'
 
 // We can enable "trace" logging so that all messages between the Stream Deck, and the plugin are recorded. When storing sensitive information
 streamDeck.logger.setLevel('debug')
@@ -13,6 +14,7 @@ streamDeck.logger.setLevel('debug')
 // Register the actions.
 const mainAction = new CompanionButtonAction()
 streamDeck.actions.registerAction(mainAction)
+streamDeck.actions.registerAction(new ReconnectCompanionAction())
 
 // Finally, connect to the Stream Deck.
 streamDeck.connect()
@@ -97,24 +99,26 @@ streamDeck.settings.onDidReceiveGlobalSettings((settings: DidReceiveGlobalSettin
 	const prevMode = lastConnectionKey ? JSON.parse(lastConnectionKey).mode : 'none'
 	lastConnectionKey = connectionKey
 
-	const deviceId = `elgato-plugin:${s.satelliteDeviceIdSuffix}`
+	const deviceIdPrefix = `elgato-plugin:${s.satelliteDeviceIdSuffix}`
 
 	if (s.connectionMode === 'satellite-tcp') {
 		streamDeck.logger.info(
-			`Connection mode: ${prevMode} → satellite-tcp (${s.satelliteTcpHost}:${s.satelliteTcpPort}, device=${deviceId})`
+			`Connection mode: ${prevMode} → satellite-tcp (${s.satelliteTcpHost}:${s.satelliteTcpPort}, device-prefix=${deviceIdPrefix})`
 		)
 		connection.setConnectionMode({
 			mode: 'satellite-tcp',
 			host: s.satelliteTcpHost,
 			port: s.satelliteTcpPort,
-			deviceId,
+			deviceIdPrefix,
 		})
 	} else if (s.connectionMode === 'satellite-ws') {
-		streamDeck.logger.info(`Connection mode: ${prevMode} → satellite-ws (${s.satelliteWsUrl}, device=${deviceId})`)
+		streamDeck.logger.info(
+			`Connection mode: ${prevMode} → satellite-ws (${s.satelliteWsUrl}, device-prefix=${deviceIdPrefix})`
+		)
 		connection.setConnectionMode({
 			mode: 'satellite-ws',
 			url: s.satelliteWsUrl,
-			deviceId,
+			deviceIdPrefix,
 		})
 	} else {
 		streamDeck.logger.info(`Connection mode: ${prevMode} → legacy (${s.ip}:${s.port})`)
@@ -126,30 +130,34 @@ streamDeck.settings.onDidReceiveGlobalSettings((settings: DidReceiveGlobalSettin
 	}
 })
 
-connection.on('wrongversion', () => {
+connection.on('wrongversion', (deviceId) => {
 	streamDeck.logger.info('wrong version')
-	mainAction.connectionStateChange()
+	mainAction.connectionStateChange(deviceId)
 })
 
-connection.on('connected', () => {
-	streamDeck.logger.info('Connected to Companion')
-	mainAction.connectionStateChange()
-	mainAction.subscribeAll()
+connection.on('connected', (deviceId) => {
+	streamDeck.logger.info(`Connected ${deviceId} to Companion`)
+	mainAction.connectionStateChange(deviceId)
+	mainAction.subscribeAll(deviceId)
 })
 
-connection.on('fillImage', (data) => {
-	mainAction.receiveImage(data)
+connection.on('fillImage', (deviceId, data) => {
+	mainAction.receiveImage(deviceId, data)
 })
 
-connection.on('clearAllKeys', () => {
-	mainAction.clearAllDynamicKeys()
+connection.on('clearAllKeys', (deviceId) => {
+	mainAction.clearAllDynamicKeys(deviceId)
 })
 
-connection.on('subscribeError', (subId) => {
-	mainAction.handleSubscribeError(subId)
+connection.on('subscribeError', (deviceId, subId) => {
+	mainAction.handleSubscribeError(deviceId, subId)
 })
 
-connection.on('disconnect', () => {
-	streamDeck.logger.info('Disconnected from Companion')
-	mainAction.connectionStateChange()
+connection.on('disconnect', (deviceId) => {
+	streamDeck.logger.info(`Disconnected ${deviceId} from Companion`)
+	mainAction.connectionStateChange(deviceId)
+})
+
+streamDeck.devices.onDeviceDidDisconnect((ev) => {
+	connection.removeDevice(ev.device.id)
 })

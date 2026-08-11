@@ -100,10 +100,10 @@
 				<!-- Satellite Device ID (shown for both satellite modes) -->
 				<div id="section-device-id" class="mode-section">
 					<p>
-						Each instance of this plugin is identified by a unique Device ID when connecting via the Satellite API. This
-						allows multiple Stream Deck Plugin instances to connect to the same Companion installation simultaneously.
-						You should only need to change this if you have a conflict with another instance, or you want to restore the
-						id from a previous installation of the Elgato software.
+						Each physical Stream Deck containing at least one Companion action is registered as an independent Companion
+						surface. Stream Decks without Companion actions remain local-only and do not connect. This value is the
+						stable installation prefix used to derive the individual surface IDs. You should only change it to resolve
+						an ID conflict or to restore this installation's previous identity.
 					</p>
 					<sdpi-item
 						label="Device ID"

@@ -13,6 +13,8 @@ import {
 const RECONNECT_DELAY = 5000
 const PING_INTERVAL = 100
 const PING_UNACKED_LIMIT = 50
+const HANDSHAKE_TIMEOUT = 10000
+const DEVICE_REGISTRATION_TIMEOUT = 5000
 const MINIMUM_PROTOCOL_VERSION = '1.10.0'
 
 // Compressed bitmap encodings we can render, in order of preference.
@@ -55,8 +57,11 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 	#client: ICompanionSatelliteClient | null = null
 	#connectionDetails: SomeConnectionDetails
 	#deviceId: string
+	#productName: string
 	#reconnectTimer: ReturnType<typeof setTimeout> | null = null
 	#pingInterval: ReturnType<typeof setInterval> | null = null
+	#handshakeTimer: ReturnType<typeof setTimeout> | null = null
+	#registrationTimer: ReturnType<typeof setTimeout> | null = null
 	#receivedBuffer = ''
 	#unackedPings = 0
 	#destroyed = false
@@ -94,10 +99,11 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		return 'rgb'
 	}
 
-	constructor(connectionDetails: SomeConnectionDetails, deviceId: string) {
+	constructor(connectionDetails: SomeConnectionDetails, deviceId: string, productName = 'Elgato Stream Deck Plugin') {
 		super()
 		this.#connectionDetails = connectionDetails
 		this.#deviceId = deviceId
+		this.#productName = productName
 	}
 
 	connect(): void {
@@ -118,6 +124,14 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		if (this.#capsTimer) {
 			clearTimeout(this.#capsTimer)
 			this.#capsTimer = null
+		}
+		if (this.#handshakeTimer) {
+			clearTimeout(this.#handshakeTimer)
+			this.#handshakeTimer = null
+		}
+		if (this.#registrationTimer) {
+			clearTimeout(this.#registrationTimer)
+			this.#registrationTimer = null
 		}
 		if (this.#client) {
 			this.#client.destroy()
@@ -150,12 +164,29 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		this.#client = client
 
 		client.on('error', (err) => {
+			if (this.#client !== client) return
 			streamDeck.logger.warn(`Satellite connection error: ${err.message}`)
 		})
 
 		client.on('connect', () => {
+			if (this.#client !== client) {
+				client.destroy()
+				return
+			}
 			streamDeck.logger.info(`Satellite socket connected to ${formatConnectionUrl(this.#connectionDetails)}`)
 			this.#unackedPings = 0
+
+			// A TCP connection can survive a network interruption while never
+			// completing Companion's Satellite handshake. Do not leave that socket
+			// half-connected forever, even if it still answers protocol pings.
+			if (this.#handshakeTimer) clearTimeout(this.#handshakeTimer)
+			this.#handshakeTimer = setTimeout(() => {
+				this.#handshakeTimer = null
+				if (!this.isConnected) {
+					streamDeck.logger.warn('Satellite handshake timed out, reconnecting')
+					this.#client?.destroy()
+				}
+			}, HANDSHAKE_TIMEOUT)
 
 			// Start keepalive
 			if (this.#pingInterval) clearInterval(this.#pingInterval)
@@ -171,10 +202,15 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		})
 
 		client.on('data', (data) => {
+			if (this.#client !== client) return
 			this.#handleReceivedData(data.toString())
 		})
 
 		client.on('close', () => {
+			// Ignore a delayed close event from a socket that has already been
+			// superseded by a newer reconnect attempt.
+			if (this.#client !== client) return
+
 			if (this.#pingInterval) {
 				clearInterval(this.#pingInterval)
 				this.#pingInterval = null
@@ -182,6 +218,14 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			if (this.#capsTimer) {
 				clearTimeout(this.#capsTimer)
 				this.#capsTimer = null
+			}
+			if (this.#handshakeTimer) {
+				clearTimeout(this.#handshakeTimer)
+				this.#handshakeTimer = null
+			}
+			if (this.#registrationTimer) {
+				clearTimeout(this.#registrationTimer)
+				this.#registrationTimer = null
 			}
 			this.#pendingConnected = false
 
@@ -249,6 +293,9 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 				break
 			case 'ADD-SUB':
 				this.#handleAddSubResponse(paramStr)
+				break
+			case 'ADD-DEVICE':
+				this.#handleAddDeviceResponse(paramStr)
 				break
 			case 'KEYS-CLEAR':
 				this.emit('clearAllKeys')
@@ -328,6 +375,10 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 	#completeConnection(): void {
 		if (!this.#pendingConnected) return
 		this.#pendingConnected = false
+		if (this.#handshakeTimer) {
+			clearTimeout(this.#handshakeTimer)
+			this.#handshakeTimer = null
+		}
 
 		this.isConnected = true
 		this.errorMessage = null
@@ -359,6 +410,22 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			const message = params['MESSAGE'] ?? 'unknown error'
 			streamDeck.logger.warn(`Satellite: ADD-SUB failed for SUBID=${subId}: ${message}`)
 			this.emit('subscribeError', subId)
+		}
+	}
+
+	#handleAddDeviceResponse(paramStr: string): void {
+		const statusEnd = paramStr.indexOf(' ')
+		const status = statusEnd === -1 ? paramStr : paramStr.substring(0, statusEnd)
+
+		if (status === 'OK') {
+			if (this.#registrationTimer) {
+				clearTimeout(this.#registrationTimer)
+				this.#registrationTimer = null
+			}
+			streamDeck.logger.info(`Satellite: surface registration acknowledged for ${this.#productName}`)
+		} else if (status === 'ERROR') {
+			streamDeck.logger.warn(`Satellite: surface registration rejected (${paramStr}), reconnecting`)
+			this.#client?.destroy()
 		}
 	}
 
@@ -428,7 +495,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		this.#registeredSurface = { rows, cols }
 		this.#sendMessage('ADD-DEVICE', {
 			DEVICEID: this.#deviceId,
-			PRODUCT_NAME: 'Elgato Stream Deck Plugin',
+			PRODUCT_NAME: this.#productName,
 			KEYS_TOTAL: String(rows * cols),
 			KEYS_PER_ROW: String(cols),
 			BITMAPS: '72',
@@ -437,6 +504,13 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			// omitting it keeps Companion's default raw `rgb` encoding
 			...this.#bitmapFormatArgs(),
 		})
+
+		if (this.#registrationTimer) clearTimeout(this.#registrationTimer)
+		this.#registrationTimer = setTimeout(() => {
+			this.#registrationTimer = null
+			streamDeck.logger.warn(`Satellite: surface registration timed out for ${this.#productName}, reconnecting`)
+			this.#client?.destroy()
+		}, DEVICE_REGISTRATION_TIMEOUT)
 	}
 
 	#reRegisterSurface(): void {
