@@ -1,6 +1,18 @@
-// Adapted from companion-satellite's client.ts (battle-tested protocol handling)
 import { EventEmitter } from 'node:events'
-import { satisfies as semverSatisfies } from 'semver'
+import {
+	SatelliteLineBuffer,
+	formatSatelliteMessage,
+	parseLineParameters,
+	splitSatelliteCommand,
+	type ParsedParams,
+	type SatelliteMessageArgs,
+} from '@companion-app/satellite-protocol/codec'
+import { MAX_LINE_LENGTH } from '@companion-app/satellite-protocol/constants'
+import {
+	getSatelliteFeatures,
+	isApiVersionAtLeast,
+	type SatelliteFeatureId,
+} from '@companion-app/satellite-protocol/versions'
 import streamDeck from '@elgato/streamdeck'
 import {
 	ICompanionSatelliteClient,
@@ -57,15 +69,16 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 	#deviceId: string
 	#reconnectTimer: ReturnType<typeof setTimeout> | null = null
 	#pingInterval: ReturnType<typeof setInterval> | null = null
-	#receivedBuffer = ''
+	#lineBuffer = new SatelliteLineBuffer(MAX_LINE_LENGTH)
 	#unackedPings = 0
 	#destroyed = false
 
 	public isConnected = false
 	public errorMessage: 'wrongversion' | null = null
 
-	// CAPS: whether the server supports subscriptions (ADD-SUB, etc.)
-	#subscriptionsSupported = false
+	// ApiVersion from BEGIN, and the features it (and CAPS) enable
+	#apiVersion: string | null = null
+	#features: Record<SatelliteFeatureId, boolean> = getSatelliteFeatures('0.0.0', null)
 	// CAPS: compressed bitmap encodings Companion can stream (BITMAP_FORMATS, API v1.12+)
 	#companionBitmapFormats: string[] = []
 	// Deferred connection handshake (wait for CAPS after BEGIN)
@@ -80,7 +93,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 	#dynamicKeys = new Set<string>()
 
 	get subscriptionsSupported(): boolean {
-		return this.#subscriptionsSupported
+		return this.#features.subscriptions
 	}
 
 	/**
@@ -135,7 +148,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			this.#client = null
 		}
 
-		this.#receivedBuffer = ''
+		this.#lineBuffer.clear()
 		this.#unackedPings = 0
 		this.isConnected = false
 
@@ -213,26 +226,20 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		client.connect()
 	}
 
-	// === Battle-tested line parser from companion-satellite ===
 	#handleReceivedData(data: string): void {
-		this.#receivedBuffer += data
-
-		let i: number
-		while ((i = this.#receivedBuffer.indexOf('\n')) !== -1) {
-			const line = this.#receivedBuffer.substring(0, i).trim()
-			this.#receivedBuffer = this.#receivedBuffer.substring(i + 1)
-
-			if (line.length > 0) {
-				this.#handleLine(line)
-			}
+		const { lines, overflow } = this.#lineBuffer.push(data)
+		for (const line of lines) {
+			if (line.length > 0) this.#handleLine(line)
+		}
+		if (overflow) {
+			streamDeck.logger.warn('Satellite: received line exceeded maximum length, reconnecting')
+			this.#client?.destroy()
 		}
 	}
 
 	#handleLine(line: string): void {
-		const spaceIdx = line.indexOf(' ')
-		const command = spaceIdx === -1 ? line : line.substring(0, spaceIdx)
-		const paramStr = spaceIdx === -1 ? '' : line.substring(spaceIdx + 1)
-		const params = parseLineParameters(paramStr)
+		const { command, body } = splitSatelliteCommand(line)
+		const params = parseLineParameters(body)
 
 		switch (command) {
 			case 'BEGIN':
@@ -248,7 +255,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 				this.#handleSubState(params)
 				break
 			case 'ADD-SUB':
-				this.#handleAddSubResponse(paramStr)
+				this.#handleAddSubResponse(params)
 				break
 			case 'KEYS-CLEAR':
 				this.emit('clearAllKeys')
@@ -265,9 +272,9 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		}
 	}
 
-	#handleBegin(params: Record<string, string>): void {
+	#handleBegin(params: ParsedParams): void {
 		const apiVersion = params['ApiVersion']
-		if (!apiVersion) {
+		if (typeof apiVersion !== 'string') {
 			streamDeck.logger.warn('Satellite: missing ApiVersion in BEGIN')
 			this.errorMessage = 'wrongversion'
 			this.emit('wrongversion')
@@ -275,7 +282,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			return
 		}
 
-		if (!semverSatisfies(apiVersion, `>=${MINIMUM_PROTOCOL_VERSION}`, { includePrerelease: true })) {
+		if (!isApiVersionAtLeast(apiVersion, MINIMUM_PROTOCOL_VERSION)) {
 			streamDeck.logger.warn(`Satellite: ApiVersion ${apiVersion} does not meet minimum ${MINIMUM_PROTOCOL_VERSION}`)
 			this.errorMessage = 'wrongversion'
 			this.emit('wrongversion')
@@ -287,7 +294,8 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 
 		// Defer emitting connected until CAPS is received (or timeout fires)
 		this.#pendingConnected = true
-		this.#subscriptionsSupported = false
+		this.#apiVersion = apiVersion
+		this.#features = getSatelliteFeatures(apiVersion, null)
 		this.#companionBitmapFormats = []
 		this.errorMessage = null
 
@@ -300,14 +308,16 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		}, 500)
 	}
 
-	#handleCaps(params: Record<string, string>): void {
+	#handleCaps(params: ParsedParams): void {
 		if (this.#capsTimer) {
 			clearTimeout(this.#capsTimer)
 			this.#capsTimer = null
 		}
 
-		this.#subscriptionsSupported = params['SUBSCRIPTIONS'] === '1'
-		streamDeck.logger.info(`Satellite: CAPS SUBSCRIPTIONS=${this.#subscriptionsSupported}`)
+		if (this.#apiVersion !== null) this.#features = getSatelliteFeatures(this.#apiVersion, params)
+		streamDeck.logger.info(
+			`Satellite: CAPS SUBSCRIPTIONS=${this.#features.subscriptions} ROTARY_AMOUNT=${this.#features.rotaryAmount}`
+		)
 
 		// BITMAP_FORMATS is a comma-separated list of bitmap encodings Companion can stream (API v1.12+)
 		this.#companionBitmapFormats =
@@ -338,7 +348,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		}
 
 		// Re-subscribe all tracked subscriptions (only if server supports it)
-		if (this.#subscriptionsSupported) {
+		if (this.#features.subscriptions) {
 			for (const sub of this.#subscriptions.values()) {
 				this.#sendSubscribe(sub.page, sub.row, sub.column)
 			}
@@ -347,27 +357,22 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		this.emit('connected')
 	}
 
-	#handleAddSubResponse(paramStr: string): void {
+	#handleAddSubResponse(params: ParsedParams): void {
 		// Response format: ADD-SUB OK or ADD-SUB ERROR SUBID=x MESSAGE="..."
-		const statusEnd = paramStr.indexOf(' ')
-		const status = statusEnd === -1 ? paramStr : paramStr.substring(0, statusEnd)
-
-		if (status === 'ERROR') {
-			const rest = statusEnd === -1 ? '' : paramStr.substring(statusEnd + 1)
-			const params = parseLineParameters(rest)
-			const subId = params['SUBID'] ?? null
-			const message = params['MESSAGE'] ?? 'unknown error'
+		if (params['ERROR'] === true) {
+			const subId = typeof params['SUBID'] === 'string' ? params['SUBID'] : null
+			const message = typeof params['MESSAGE'] === 'string' ? params['MESSAGE'] : 'unknown error'
 			streamDeck.logger.warn(`Satellite: ADD-SUB failed for SUBID=${subId}: ${message}`)
 			this.emit('subscribeError', subId)
 		}
 	}
 
 	// KEY-STATE for surface/dynamic page buttons
-	#handleState(params: Record<string, string>): void {
+	#handleState(params: ParsedParams): void {
 		const keyIndex = params['KEY']
 		const bitmap = params['BITMAP']
 
-		if (keyIndex == null || bitmap == null) return
+		if (typeof keyIndex !== 'string' || typeof bitmap !== 'string') return
 
 		const cols = this.#registeredSurface?.cols ?? 8
 		const idx = parseInt(keyIndex, 10)
@@ -385,11 +390,11 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 	}
 
 	// SUB-STATE for subscribed static-page buttons
-	#handleSubState(params: Record<string, string>): void {
+	#handleSubState(params: ParsedParams): void {
 		const subId = params['SUBID']
 		const bitmap = params['BITMAP']
 
-		if (!subId || bitmap == null) return
+		if (typeof subId !== 'string' || !subId || typeof bitmap !== 'string') return
 
 		const parts = subId.split('/')
 		if (parts.length !== 3) return
@@ -429,10 +434,10 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		this.#sendMessage('ADD-DEVICE', {
 			DEVICEID: this.#deviceId,
 			PRODUCT_NAME: 'Elgato Stream Deck Plugin',
-			KEYS_TOTAL: String(rows * cols),
-			KEYS_PER_ROW: String(cols),
-			BITMAPS: '72',
-			BRIGHTNESS: '0',
+			KEYS_TOTAL: rows * cols,
+			KEYS_PER_ROW: cols,
+			BITMAPS: 72,
+			BRIGHTNESS: false,
 			// Request a compressed bitmap encoding when one was negotiated (API v1.12+);
 			// omitting it keeps Companion's default raw `rgb` encoding
 			...this.#bitmapFormatArgs(),
@@ -459,14 +464,14 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			const cols = this.#registeredSurface?.cols ?? 8
 			this.#sendMessage('KEY-PRESS', {
 				DEVICEID: this.#deviceId,
-				KEY: String(row * cols + column),
-				PRESSED: 'true',
+				KEY: row * cols + column,
+				PRESSED: true,
 			})
-		} else if (this.#subscriptionsSupported) {
+		} else if (this.#features.subscriptions) {
 			// Static page: subscription press
 			this.#sendMessage('SUB-PRESS', {
 				SUBID: `${page}/${row}/${column}`,
-				PRESSED: 'true',
+				PRESSED: true,
 			})
 		}
 	}
@@ -476,35 +481,45 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			const cols = this.#registeredSurface?.cols ?? 8
 			this.#sendMessage('KEY-PRESS', {
 				DEVICEID: this.#deviceId,
-				KEY: String(row * cols + column),
-				PRESSED: 'false',
+				KEY: row * cols + column,
+				PRESSED: false,
 			})
-		} else if (this.#subscriptionsSupported) {
+		} else if (this.#features.subscriptions) {
 			this.#sendMessage('SUB-PRESS', {
 				SUBID: `${page}/${row}/${column}`,
-				PRESSED: 'false',
+				PRESSED: false,
 			})
 		}
 	}
 
 	rotate(page: number | null, row: number, column: number, ticks: number): void {
-		const direction = ticks > 0 ? '1' : '0'
-		const count = Math.abs(ticks)
+		if (ticks === 0) return
 
-		for (let i = 0; i < count; i++) {
-			if (page === null) {
-				const cols = this.#registeredSurface?.cols ?? 8
-				this.#sendMessage('KEY-ROTATE', {
-					DEVICEID: this.#deviceId,
-					KEY: String(row * cols + column),
-					DIRECTION: direction,
-				})
-			} else if (this.#subscriptionsSupported) {
-				this.#sendMessage('SUB-ROTATE', {
-					SUBID: `${page}/${row}/${column}`,
-					DIRECTION: direction,
-				})
+		if (this.#features.rotaryAmount) {
+			// API v1.14+: a single message carrying the signed step count
+			this.#sendRotate(page, row, column, ticks)
+		} else {
+			// Older APIs: one message per step, DIRECTION=1 clockwise / 0 counter-clockwise
+			const direction = ticks > 0 ? 1 : 0
+			for (let i = 0; i < Math.abs(ticks); i++) {
+				this.#sendRotate(page, row, column, direction)
 			}
+		}
+	}
+
+	#sendRotate(page: number | null, row: number, column: number, direction: number): void {
+		if (page === null) {
+			const cols = this.#registeredSurface?.cols ?? 8
+			this.#sendMessage('KEY-ROTATE', {
+				DEVICEID: this.#deviceId,
+				KEY: row * cols + column,
+				DIRECTION: direction,
+			})
+		} else if (this.#features.subscriptions) {
+			this.#sendMessage('SUB-ROTATE', {
+				SUBID: `${page}/${row}/${column}`,
+				DIRECTION: direction,
+			})
 		}
 	}
 
@@ -521,7 +536,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			// Static: subscribe to button (only if server supports subscriptions)
 			const subId = `${page}/${row}/${column}`
 			this.#subscriptions.set(subId, { page, row, column })
-			if (this.isConnected && this.#subscriptionsSupported) {
+			if (this.isConnected && this.#features.subscriptions) {
 				this.#sendSubscribe(page, row, column)
 			}
 		}
@@ -535,7 +550,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		} else {
 			const subId = `${page}/${row}/${column}`
 			this.#subscriptions.delete(subId)
-			if (this.isConnected && this.#subscriptionsSupported) {
+			if (this.isConnected && this.#features.subscriptions) {
 				this.#sendMessage('REMOVE-SUB', { SUBID: subId })
 			}
 		}
@@ -546,7 +561,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		this.#sendMessage('ADD-SUB', {
 			SUBID: subId,
 			LOCATION: subId,
-			BITMAP: '72',
+			BITMAP: 72,
 			// Request the negotiated compressed bitmap encoding for this subscription (API v1.12+)
 			...this.#bitmapFormatArgs(),
 		})
@@ -554,67 +569,15 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 
 	// BITMAP_FORMAT parameter for ADD-DEVICE / ADD-SUB, or empty when no compressed
 	// format was negotiated (keeping Companion's default raw `rgb` encoding).
-	#bitmapFormatArgs(): Record<string, string> {
+	#bitmapFormatArgs(): SatelliteMessageArgs {
 		const format = this.#negotiatedBitmapFormat
 		return format !== 'rgb' ? { BITMAP_FORMAT: format } : {}
 	}
 
-	// === Message formatting (battle-tested from companion-satellite) ===
-	#sendMessage(command: string, params: Record<string, string>): void {
+	// === Message formatting ===
+	#sendMessage(command: string, params: SatelliteMessageArgs): void {
 		if (!this.#client?.connected) return
 
-		let msg = command
-		for (const [key, val] of Object.entries(params)) {
-			// Quote values with spaces
-			if (val.includes(' ')) {
-				msg += ` ${key}="${val}"`
-			} else {
-				msg += ` ${key}=${val}`
-			}
-		}
-		msg += '\n'
-
-		this.#client.write(msg)
+		this.#client.write(formatSatelliteMessage(command, null, null, params))
 	}
-}
-
-// Battle-tested line parameter parser from companion-satellite
-function parseLineParameters(line: string): Record<string, string> {
-	const params: Record<string, string> = {}
-	let remaining = line.trim()
-
-	while (remaining.length > 0) {
-		const equalsIndex = remaining.indexOf('=')
-		if (equalsIndex === -1) break
-
-		const key = remaining.substring(0, equalsIndex)
-		remaining = remaining.substring(equalsIndex + 1)
-
-		let value: string
-		if (remaining.startsWith('"')) {
-			// Quoted value
-			const endQuote = remaining.indexOf('"', 1)
-			if (endQuote === -1) {
-				value = remaining.substring(1)
-				remaining = ''
-			} else {
-				value = remaining.substring(1, endQuote)
-				remaining = remaining.substring(endQuote + 1).trim()
-			}
-		} else {
-			// Unquoted value
-			const spaceIndex = remaining.indexOf(' ')
-			if (spaceIndex === -1) {
-				value = remaining
-				remaining = ''
-			} else {
-				value = remaining.substring(0, spaceIndex)
-				remaining = remaining.substring(spaceIndex + 1).trim()
-			}
-		}
-
-		params[key] = value
-	}
-
-	return params
 }

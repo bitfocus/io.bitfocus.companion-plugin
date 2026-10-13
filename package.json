@@ -21,7 +21,6 @@
 		"@tsconfig/node20": "^20.1.9",
 		"@types/node": "^24.13.3",
 		"@types/pngjs": "^6.0.5",
-		"@types/semver": "^7.7.1",
 		"@types/ws": "^8.18.1",
 		"prettier": "^3.9.5",
 		"rollup": "^4.62.2",
@@ -29,9 +28,9 @@
 		"typescript": "^6.0.3"
 	},
 	"dependencies": {
+		"@companion-app/satellite-protocol": "^0.1.0",
 		"@elgato/streamdeck": "^2.1.0",
 		"pngjs": "^7.0.0",
-		"semver": "^7.8.5",
 		"ws": "^8.21.1"
 	},
 	"packageManager": "yarn@4.14.0"

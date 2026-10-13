@@ -5,6 +5,15 @@ __metadata:
   version: 9
   cacheKey: 10c0
 
+"@companion-app/satellite-protocol@npm:^0.1.0":
+  version: 0.1.0
+  resolution: "@companion-app/satellite-protocol@npm:0.1.0"
+  dependencies:
+    zod: "npm:^4.6.5"
+  checksum: 10c0/a4fd6f7af093f631171ebe10dd00d3f9ed0937aa0a336003919b4a43e00194e6eb77951786f108c390c1424bff69177c4acc31618c1facff0aa13c263624150f
+  languageName: node
+  linkType: hard
+
 "@elgato/cli@npm:^1.7.4":
   version: 1.7.4
   resolution: "@elgato/cli@npm:1.7.4"
@@ -741,13 +750,6 @@ __metadata:
   version: 1.20.2
   resolution: "@types/resolve@npm:1.20.2"
   checksum: 10c0/c5b7e1770feb5ccfb6802f6ad82a7b0d50874c99331e0c9b259e415e55a38d7a86ad0901c57665d93f75938be2a6a0bc9aa06c9749192cadb2e4512800bbc6e6
-  languageName: node
-  linkType: hard
-
-"@types/semver@npm:^7.7.1":
-  version: 7.7.1
-  resolution: "@types/semver@npm:7.7.1"
-  checksum: 10c0/c938aef3bf79a73f0f3f6037c16e2e759ff40c54122ddf0b2583703393d8d3127130823facb880e694caa324eb6845628186aac1997ee8b31dc2d18fafe26268
   languageName: node
   linkType: hard
 
@@ -1712,6 +1714,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "root-workspace-0b6124@workspace:."
   dependencies:
+    "@companion-app/satellite-protocol": "npm:^0.1.0"
     "@elgato/cli": "npm:^1.7.4"
     "@elgato/streamdeck": "npm:^2.1.0"
     "@rollup/plugin-commonjs": "npm:^29.0.3"
@@ -1722,12 +1725,10 @@ __metadata:
     "@tsconfig/node20": "npm:^20.1.9"
     "@types/node": "npm:^24.13.3"
     "@types/pngjs": "npm:^6.0.5"
-    "@types/semver": "npm:^7.7.1"
     "@types/ws": "npm:^8.18.1"
     pngjs: "npm:^7.0.0"
     prettier: "npm:^3.9.5"
     rollup: "npm:^4.62.2"
-    semver: "npm:^7.8.5"
     tslib: "npm:^2.8.1"
     typescript: "npm:^6.0.3"
     ws: "npm:^8.21.1"
@@ -1763,15 +1764,6 @@ __metadata:
   bin:
     semver: bin/semver.js
   checksum: 10c0/5215ad0234e2845d4ea5bb9d836d42b03499546ddafb12075566899fc617f68794bb6f146076b6881d755de17d6c6cc73372555879ec7dce2c2feee947866ad2
-  languageName: node
-  linkType: hard
-
-"semver@npm:^7.8.5":
-  version: 7.8.5
-  resolution: "semver@npm:7.8.5"
-  bin:
-    semver: bin/semver.js
-  checksum: 10c0/b1f3127a5be8125a94f37188b361c212466c292c6910adce3ec106cff5dc211ccaedc4739c11bb70fda59d6fc1f040a9bca289f4e093451521a2372e5231fe0c
   languageName: node
   linkType: hard
 
@@ -2048,5 +2040,12 @@ __metadata:
   version: 3.25.76
   resolution: "zod@npm:3.25.76"
   checksum: 10c0/5718ec35e3c40b600316c5b4c5e4976f7fee68151bc8f8d90ec18a469be9571f072e1bbaace10f1e85cf8892ea12d90821b200e980ab46916a6166a4260a983c
+  languageName: node
+  linkType: hard
+
+"zod@npm:^4.6.5":
+  version: 4.6.5
+  resolution: "zod@npm:4.6.5"
+  checksum: 10c0/32eb6c5e98becbe045675b2141c3611451c16ba567f9779231d79af41c4d651ca1c22f154aef7e6c6e77b929f23e43f1154ca05b82e119e922353725d6776af5
   languageName: node
   linkType: hard
