@@ -22,6 +22,7 @@ import {
 	formatConnectionUrl,
 } from './clientImplementations'
 import {
+	SQUARE_BITMAP,
 	WIDE_BITMAP,
 	buildLayoutManifest,
 	encodeBase64Json,
@@ -456,18 +457,20 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 	}
 
 	// === Surface management (dynamic page buttons) ===
-	#ensureSurfaceSize(neededRows: number, neededCols: number): void {
+	/** @returns whether the surface was (re-)registered */
+	#ensureSurfaceSize(neededRows: number, neededCols: number): boolean {
 		const minRows = Math.max(4, neededRows)
 		const minCols = Math.max(8, neededCols)
 
 		if (this.#registeredSurface && this.#registeredSurface.rows >= minRows && this.#registeredSurface.cols >= minCols) {
-			return // already big enough
+			return false // already big enough
 		}
 
 		const rows = Math.max(minRows, this.#registeredSurface?.rows ?? 0)
 		const cols = Math.max(minCols, this.#registeredSurface?.cols ?? 0)
 
 		this.#registerSurface(rows, cols)
+		return true
 	}
 
 	#registerSurface(rows: number, cols: number): void {
@@ -599,12 +602,13 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		if (page === null) {
 			// Dynamic: register surface key
 			const key = `${row}/${column}`
-			this.#dynamicKeys.add(key)
 			const wideChanged = wide && !this.#wideDynamicKeys.has(key)
 			if (wide) this.#wideDynamicKeys.add(key)
+			else this.#dynamicKeys.add(key)
 			if (this.isConnected) {
-				this.#ensureSurfaceSize(row + 1, column + 1)
-				if (wideChanged) this.#scheduleReRegister()
+				// A fresh registration already includes the new wide cell
+				const registered = this.#ensureSurfaceSize(row + 1, column + 1)
+				if (wideChanged && !registered) this.#scheduleReRegister()
 			}
 		} else {
 			// Static: subscribe to button (only if server supports subscriptions)
@@ -639,7 +643,9 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		const location = `${page}/${row}/${column}`
 		// A STYLE replaces BITMAP, letting the subscription ask for a non-square bitmap
 		const styleArgs: SatelliteMessageArgs =
-			wide && this.#features.nonSquareBitmaps ? { STYLE: encodeBase64Json({ bitmap: WIDE_BITMAP }) } : { BITMAP: 72 }
+			wide && this.#features.nonSquareBitmaps
+				? { STYLE: encodeBase64Json({ bitmap: WIDE_BITMAP }) }
+				: { BITMAP: SQUARE_BITMAP.w }
 		this.#sendMessage('ADD-SUB', {
 			SUBID: this.#subId(page, row, column, wide),
 			LOCATION: location,

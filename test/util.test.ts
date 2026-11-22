@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { PNG } from 'pngjs'
-import { dataToImageUrl } from '../src/util.ts'
+import { dataToImageUrl, isWideRawBitmap } from '../src/util.ts'
 
 test('dataToImageUrl encodes a 200x100 bitmap', () => {
 	const url = dataToImageUrl(Buffer.alloc(200 * 100 * 3, 0x80), 200, 100)
@@ -14,4 +14,10 @@ test('dataToImageUrl encodes a 200x100 bitmap', () => {
 test('dataToImageUrl defaults to 72x72', () => {
 	const png = PNG.sync.read(Buffer.from(dataToImageUrl(Buffer.alloc(72 * 72 * 3)).split(',')[1], 'base64'))
 	assert.equal(png.width, 72)
+})
+
+test('isWideRawBitmap goes by the byte length, not the requested size', () => {
+	assert.equal(isWideRawBitmap(Buffer.alloc(200 * 100 * 3)), true)
+	assert.equal(isWideRawBitmap(Buffer.alloc(72 * 72 * 3)), false)
+	assert.equal(isWideRawBitmap({ data: new Array(200 * 100 * 3).fill(0) }), true)
 })

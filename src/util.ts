@@ -26,6 +26,11 @@ export function dataToImageUrl(data: Buffer | { data: number[] }, width = 72, he
 	return 'data:image/png;base64,' + PNG.sync.write(png, { deflateLevel: 1 }).toString('base64')
 }
 
+/** Raw RGB bitmaps carry no size, so tell a wide one by its length (a bitmap from before a re-registration may still arrive) */
+export function isWideRawBitmap(data: Buffer | { data: number[] }): boolean {
+	return (Buffer.isBuffer(data) ? data.length : data.data.length) === 200 * 100 * 3
+}
+
 export function combineBankNumber(row: number, column: number): number | null {
 	if (row < 0 || row >= 4) return null
 	if (column < 0 || column >= 8) return null

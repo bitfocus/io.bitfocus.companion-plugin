@@ -20,7 +20,7 @@ import imageNotConnected from '../img/actionNotConnected.png'
 import imageLoading from '../img/loadingIcon.png'
 
 import { connection, FillImageMessage } from '../companion-connection'
-import { dataToImageUrl, extractRowAndColumn } from '../util'
+import { dataToImageUrl, extractRowAndColumn, isWideRawBitmap } from '../util'
 import { imageKeyId, subIdToKeyId } from '../satellite/layout'
 
 interface KeyImageCache {
@@ -161,7 +161,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		if (!coords) return
 		const { row, column } = coords
 
-		const wide = !!data.wide
+		const wide = data.png ? !!data.wide : isWideRawBitmap(data.data)
 		const imageUrl = data.png ? data.data : wide ? dataToImageUrl(data.data, 200, 100) : dataToImageUrl(data.data)
 		const cachePage = page || null
 
@@ -174,7 +174,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 				existing.cachedImage = String(imageUrl)
 				existing.cachedWide = wide
 
-				for (const [actionItemId, actionItem] of existing.listeners.entries()) {
+				for (const actionItem of existing.listeners.values()) {
 					this.#drawImage(actionItem.action, String(imageUrl), wide)
 				}
 			} else if (cachePage === null && !entryWide) {
@@ -273,9 +273,9 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			let dialAction = action as DialAction
 			// A square image (icons, or a Companion without wide bitmaps) would be stretched by the wide layout
 			const switchLayout = (this.#dialLayoutWide.get(action.id) ?? false) !== wide
-			if (switchLayout) this.#dialLayoutWide.set(action.id, wide)
 			// Sent back to back (not chained) so a later draw can never overtake this one
 			if (switchLayout) {
+				this.#dialLayoutWide.set(action.id, wide)
 				dialAction.setFeedbackLayout(wide ? 'wideEncoderLayout.json' : 'encoderLayout.json').catch((e) => {
 					streamDeck.logger.error(`Set layout failed: ${e}`)
 				})
