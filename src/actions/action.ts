@@ -21,11 +21,15 @@ import imageLoading from '../img/loadingIcon.png'
 
 import { connection, FillImageMessage } from '../companion-connection'
 import { dataToImageUrl, extractRowAndColumn } from '../util'
+import { imageKeyId, subIdToKeyId } from '../satellite/layout'
 
 interface KeyImageCache {
 	listeners: Map<string, { action: Action<CompanionButtonSettings> }>
 	settings: CompanionButtonSettings
 	cachedImage: string | null
+	cachedWide: boolean
+	// Entry for dials, which ask Companion for full-width bitmaps
+	wide: boolean
 }
 
 /**
@@ -33,6 +37,8 @@ interface KeyImageCache {
  */
 @action({ UUID: 'io.bitfocus.companion-plugin.action' })
 export class CompanionButtonAction extends SingletonAction<CompanionButtonSettings> {
+	// Which layout each dial currently shows; manifest.json starts them on the square layout
+	#dialLayoutWide = new Map<string, boolean>()
 	#keyImageListeners = new Map<string, KeyImageCache>()
 	#actionItems = new Map<string, { action: Action<CompanionButtonSettings>; settings: CompanionButtonSettings }>()
 
@@ -82,6 +88,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	async onWillDisappear(ev: WillDisappearEvent<CompanionButtonSettings>): Promise<void> {
 		const actionItem = this.#actionItems.get(ev.action.id)
 		this.#actionItems.delete(ev.action.id)
+		this.#dialLayoutWide.delete(ev.action.id)
 
 		if (actionItem) {
 			this.#unsubscribeAction(actionItem.action, actionItem.settings)
@@ -98,23 +105,23 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 
 	async onKeyDown(ev: KeyDownEvent<CompanionButtonSettings>): Promise<void> {
 		const s = ev.payload.settings
-		connection.keyDown(this.#buttonEventPage(s), s.row, s.column)
+		connection.keyDown(this.#buttonEventPage(s), s.row, s.column, false)
 	}
 	async onKeyUp(ev: KeyUpEvent<CompanionButtonSettings>): Promise<void> {
 		const s = ev.payload.settings
-		connection.keyUp(this.#buttonEventPage(s), s.row, s.column)
+		connection.keyUp(this.#buttonEventPage(s), s.row, s.column, false)
 	}
 	async onDialRotate(ev: DialRotateEvent<CompanionButtonSettings>): Promise<void> {
 		const s = ev.payload.settings
-		connection.rotate(this.#buttonEventPage(s), s.row, s.column, ev.payload.ticks)
+		connection.rotate(this.#buttonEventPage(s), s.row, s.column, ev.payload.ticks, true)
 	}
 	async onDialDown(ev: DialDownEvent<CompanionButtonSettings>): Promise<void> {
 		const s = ev.payload.settings
-		connection.keyDown(this.#buttonEventPage(s), s.row, s.column)
+		connection.keyDown(this.#buttonEventPage(s), s.row, s.column, true)
 	}
 	async onDialUp(ev: DialUpEvent<CompanionButtonSettings>): Promise<void> {
 		const s = ev.payload.settings
-		connection.keyUp(this.#buttonEventPage(s), s.row, s.column)
+		connection.keyUp(this.#buttonEventPage(s), s.row, s.column, true)
 	}
 
 	override async onDidReceiveSettings(ev: DidReceiveSettingsEvent<CompanionButtonSettings>): Promise<void> {
@@ -154,24 +161,31 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		if (!coords) return
 		const { row, column } = coords
 
-		const imageUrl = data.png ? data.data : dataToImageUrl(data.data)
+		const wide = !!data.wide
+		const imageUrl = data.png ? data.data : wide ? dataToImageUrl(data.data, 200, 100) : dataToImageUrl(data.data)
+		const cachePage = page || null
 
-		const buttonSettings: CompanionButtonSettings = { dynamicPage: !page, page: page || 0, row, column }
-		const keyId = getKeyIdFromSettings(buttonSettings)
+		// A static image belongs to one subscription; dynamic and legacy images serve keys and dials alike
+		const entryWides = cachePage !== null && data.wideSub !== undefined ? [data.wideSub] : [false, true]
+		for (const entryWide of entryWides) {
+			const keyId = imageKeyId(cachePage, row, column, entryWide)
+			const existing = this.#keyImageListeners.get(keyId)
+			if (existing) {
+				existing.cachedImage = String(imageUrl)
+				existing.cachedWide = wide
 
-		const existing = this.#keyImageListeners.get(keyId)
-		if (existing) {
-			existing.cachedImage = String(imageUrl)
-
-			for (const [actionItemId, actionItem] of existing.listeners.entries()) {
-				this.#drawImage(actionItem.action, String(imageUrl))
+				for (const [actionItemId, actionItem] of existing.listeners.entries()) {
+					this.#drawImage(actionItem.action, String(imageUrl), wide)
+				}
+			} else if (cachePage === null && !entryWide) {
+				this.#keyImageListeners.set(keyId, {
+					listeners: new Map(),
+					settings: { dynamicPage: true, page: 0, row, column },
+					cachedImage: String(imageUrl),
+					cachedWide: wide,
+					wide: false,
+				})
 			}
-		} else if (buttonSettings.dynamicPage) {
-			this.#keyImageListeners.set(keyId, {
-				listeners: new Map(),
-				settings: { ...buttonSettings },
-				cachedImage: String(imageUrl),
-			})
 		}
 	}
 
@@ -185,9 +199,11 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	handleSubscribeError(subId: string | null) {
 		if (subId) {
 			// Specific subscription failed — find matching keyImageListeners entry
-			const existing = this.#keyImageListeners.get(subId)
+			const keyId = subIdToKeyId(subId)
+			const existing = keyId ? this.#keyImageListeners.get(keyId) : undefined
 			if (existing) {
 				existing.cachedImage = null
+				existing.cachedWide = false
 				for (const listener of existing.listeners.values()) {
 					this.#drawImage(listener.action, imageNotConnected)
 				}
@@ -205,7 +221,9 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		if (!connection.isConnected) return
 
 		for (const item of this.#keyImageListeners.values()) {
-			this.#sendSubscribeForSettings(item.settings)
+			// A dial entry left without dials must not mark its cell wide again
+			if (item.wide && item.listeners.size === 0) continue
+			this.#sendSubscribeForSettings(item.settings, item.wide)
 		}
 	}
 	connectionStateChange() {
@@ -245,7 +263,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			})
 	}
 
-	#drawImage(action: Action<CompanionButtonSettings>, image: string) {
+	#drawImage(action: Action<CompanionButtonSettings>, image: string, wide = false) {
 		if (action.isKey()) {
 			let keyAction = action as KeyAction
 			keyAction.setImage(image).catch((e) => {
@@ -253,6 +271,15 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			})
 		} else if (action.isDial()) {
 			let dialAction = action as DialAction
+			// A square image (icons, or a Companion without wide bitmaps) would be stretched by the wide layout
+			const switchLayout = (this.#dialLayoutWide.get(action.id) ?? false) !== wide
+			if (switchLayout) this.#dialLayoutWide.set(action.id, wide)
+			// Sent back to back (not chained) so a later draw can never overtake this one
+			if (switchLayout) {
+				dialAction.setFeedbackLayout(wide ? 'wideEncoderLayout.json' : 'encoderLayout.json').catch((e) => {
+					streamDeck.logger.error(`Set layout failed: ${e}`)
+				})
+			}
 			dialAction.setFeedback({ canvas: image }).catch((e) => {
 				streamDeck.logger.error(`Draw image failed: ${e}`)
 			})
@@ -262,42 +289,48 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 	}
 
 	#subscribeAction(action: Action<CompanionButtonSettings>, settings: CompanionButtonSettings) {
-		const keyId = getKeyIdFromSettings(settings)
+		const wide = action.isDial()
+		const keyId = imageKeyId(settings.dynamicPage ? null : settings.page, settings.row, settings.column, wide)
 
 		streamDeck.logger.debug(`do sub ${keyId}`)
 
 		const existing = this.#keyImageListeners.get(keyId)
 		if (existing && (existing.listeners.size > 0 || settings.dynamicPage)) {
+			// The first dial on a cell must mark it wide, even when an image is already cached for it
+			if (wide && existing.listeners.size === 0) this.#sendSubscribeForSettings(settings, wide)
 			existing.listeners.set(action.id, { action })
 
 			// Draw cached image
 			if (existing.cachedImage) {
-				this.#drawImage(action, existing.cachedImage)
+				this.#drawImage(action, existing.cachedImage, existing.cachedWide)
 			}
 		} else {
 			const newListeners: KeyImageCache = {
 				listeners: new Map(),
 				settings: { ...settings },
 				cachedImage: null,
+				cachedWide: false,
+				wide,
 			}
 			newListeners.listeners.set(action.id, { action })
 			this.#keyImageListeners.set(keyId, newListeners)
 
 			// send subscribe
-			this.#sendSubscribeForSettings(settings)
+			this.#sendSubscribeForSettings(settings, wide)
 		}
 	}
-	#sendSubscribeForSettings(settings: CompanionButtonSettings) {
+	#sendSubscribeForSettings(settings: CompanionButtonSettings, wide: boolean) {
 		if (connection.isConnected) {
 			const page = settings.dynamicPage ? null : settings.page
 			// Skip static-page subscriptions if the server doesn't support them
 			if (!settings.dynamicPage && connection.subscriptionsAvailable === false) return
 			streamDeck.logger.debug(`send subscribe: ${JSON.stringify(settings)}`)
-			connection.requestButton(page, settings.row, settings.column)
+			connection.requestButton(page, settings.row, settings.column, wide)
 		}
 	}
 	#unsubscribeAction(action: Action<CompanionButtonSettings>, settings: CompanionButtonSettings) {
-		const keyId = getKeyIdFromSettings(settings)
+		const wide = action.isDial()
+		const keyId = imageKeyId(settings.dynamicPage ? null : settings.page, settings.row, settings.column, wide)
 
 		this.#drawImage(action, connection.isConnected ? imageLoading : imageNotConnected)
 
@@ -309,7 +342,7 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 		if (existing.listeners.size === 0) {
 			if (connection.isConnected) {
 				const page = settings.dynamicPage ? null : settings.page
-				connection.unrequestButton(page, settings.row, settings.column)
+				connection.unrequestButton(page, settings.row, settings.column, wide)
 			}
 
 			if (!settings.dynamicPage) {
@@ -317,12 +350,6 @@ export class CompanionButtonAction extends SingletonAction<CompanionButtonSettin
 			}
 		}
 	}
-}
-
-function getKeyIdFromSettings(settings: CompanionButtonSettings) {
-	// const coordinates = buttonselector.split(/:/);
-	// return parseInt(coordinates[0]) - 1 + (parseInt(coordinates[1]) - 1) * 8;
-	return `${settings.dynamicPage ? 'dynamic' : settings.page}/${settings.row}/${settings.column}`
 }
 
 /**

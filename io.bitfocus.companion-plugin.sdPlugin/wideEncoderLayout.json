@@ -1,0 +1,11 @@
+{
+	"id": "io.bitfocus.companion-plugin.layouts.wide-encoder",
+	"items": [
+		{
+			"key": "canvas",
+			"type": "pixmap",
+			"rect": [0, 0, 200, 100],
+			"zOrder": 1
+		}
+	]
+}
