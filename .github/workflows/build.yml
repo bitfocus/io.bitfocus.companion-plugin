@@ -39,6 +39,9 @@ jobs:
       - name: Type check
         run: yarn check-types
 
+      - name: Test
+        run: yarn test
+
       - name: Build
         run: yarn build
 
