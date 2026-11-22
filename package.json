@@ -8,6 +8,7 @@
 		"format": "prettier -w .",
 		"lint": "prettier --check .",
 		"check-types": "tsc --noEmit",
+		"test": "node --test \"test/*.test.ts\"",
 		"vendor": "node scripts/download-vendor.mjs"
 	},
 	"type": "module",

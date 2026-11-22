@@ -21,8 +21,20 @@ import {
 	SomeConnectionDetails,
 	formatConnectionUrl,
 } from './clientImplementations'
+import {
+	SQUARE_BITMAP,
+	WIDE_BITMAP,
+	buildLayoutManifest,
+	encodeBase64Json,
+	parseControlId,
+	parseSubId,
+	useManifest,
+	wideSubId,
+} from './layout'
 
 const RECONNECT_DELAY = 5000
+// Coalesce wide-cell changes (eg a profile switch showing several dials at once) into one re-registration
+const REREGISTER_DEBOUNCE = 300
 const PING_INTERVAL = 100
 const PING_UNACKED_LIMIT = 50
 const MINIMUM_PROTOCOL_VERSION = '1.10.0'
@@ -40,6 +52,8 @@ export interface SatelliteFillImageData {
 	row: number
 	column: number
 	data: string // raw RGB24 base64, or a `data:` url for compressed (png) bitmaps
+	wide: boolean // bitmap is WIDE_BITMAP sized instead of square
+	wideSub?: boolean // static page image for a wide dial subscription (undefined for dynamic pages)
 }
 
 interface SatelliteClientEvents {
@@ -56,6 +70,7 @@ interface TrackedSubscription {
 	page: number
 	row: number
 	column: number
+	wide: boolean
 }
 
 interface TrackedSurface {
@@ -91,6 +106,13 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 	#subscriptions = new Map<string, TrackedSubscription>()
 	// Dynamic button keys that have been requested
 	#dynamicKeys = new Set<string>()
+	// Dynamic button keys shown by a wide dial, registered with wide bitmaps in manifest mode
+	#wideDynamicKeys = new Set<string>()
+	// The wide keys in the manifest Companion currently has; bitmaps follow this until a re-register lands
+	#registeredWideKeys = new Set<string>()
+	// Whether the registered surface used a LAYOUT_MANIFEST, so controls are addressed by CONTROLID
+	#manifestMode = false
+	#reRegisterTimer: ReturnType<typeof setTimeout> | null = null
 
 	get subscriptionsSupported(): boolean {
 		return this.#features.subscriptions
@@ -132,6 +154,7 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			clearTimeout(this.#capsTimer)
 			this.#capsTimer = null
 		}
+		this.#clearReRegisterTimer()
 		if (this.#client) {
 			this.#client.destroy()
 			this.#client = null
@@ -197,10 +220,12 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 				this.#capsTimer = null
 			}
 			this.#pendingConnected = false
+			this.#clearReRegisterTimer()
 
 			const wasConnected = this.isConnected
 			this.isConnected = false
 			this.#registeredSurface = null
+			this.#manifestMode = false
 
 			if (wasConnected) {
 				streamDeck.logger.info(`Satellite: disconnected from ${formatConnectionUrl(this.#connectionDetails)}`)
@@ -343,14 +368,14 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		this.errorMessage = null
 
 		// Re-register surface if we had dynamic keys
-		if (this.#dynamicKeys.size > 0) {
+		if (this.#dynamicKeys.size > 0 || this.#wideDynamicKeys.size > 0) {
 			this.#reRegisterSurface()
 		}
 
 		// Re-subscribe all tracked subscriptions (only if server supports it)
 		if (this.#features.subscriptions) {
 			for (const sub of this.#subscriptions.values()) {
-				this.#sendSubscribe(sub.page, sub.row, sub.column)
+				this.#sendSubscribe(sub.page, sub.row, sub.column, sub.wide)
 			}
 		}
 
@@ -369,23 +394,40 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 
 	// KEY-STATE for surface/dynamic page buttons
 	#handleState(params: ParsedParams): void {
+		const controlId = params['CONTROLID']
 		const keyIndex = params['KEY']
 		const bitmap = params['BITMAP']
 
-		if (typeof keyIndex !== 'string' || typeof bitmap !== 'string') return
+		if (typeof bitmap !== 'string') return
 
-		const cols = this.#registeredSurface?.cols ?? 8
-		const idx = parseInt(keyIndex, 10)
-		const row = Math.floor(idx / cols)
-		const column = idx % cols
+		let row: number
+		let column: number
+		if (typeof controlId === 'string') {
+			// Manifest mode addresses controls by CONTROLID (`row/column`)
+			const coords = parseControlId(controlId)
+			if (!coords) return
+			;({ row, column } = coords)
+		} else if (typeof keyIndex === 'string') {
+			const cols = this.#registeredSurface?.cols ?? 8
+			const idx = parseInt(keyIndex, 10)
+			row = Math.floor(idx / cols)
+			column = idx % cols
+		} else {
+			return
+		}
 
-		streamDeck.logger.debug(`Satellite: KEY-STATE key=${keyIndex} row=${row} col=${column} bitmapLen=${bitmap.length}`)
+		const wide = this.#manifestMode && this.#registeredWideKeys.has(`${row}/${column}`)
+
+		streamDeck.logger.debug(
+			`Satellite: KEY-STATE key=${controlId ?? keyIndex} row=${row} col=${column} wide=${wide} bitmapLen=${bitmap.length}`
+		)
 
 		this.emit('fillImage', {
 			page: null,
 			row,
 			column,
 			data: bitmap,
+			wide,
 		})
 	}
 
@@ -396,12 +438,11 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 
 		if (typeof subId !== 'string' || !subId || typeof bitmap !== 'string') return
 
-		const parts = subId.split('/')
-		if (parts.length !== 3) return
-
-		const page = parseInt(parts[0], 10)
-		const row = parseInt(parts[1], 10)
-		const column = parseInt(parts[2], 10)
+		const parsed = parseSubId(subId)
+		if (!parsed) return
+		const { page, row, column } = parsed
+		// A wide subscription only gets a wide bitmap when Companion supports non-square ones
+		const wide = parsed.wide && this.#features.nonSquareBitmaps
 
 		streamDeck.logger.debug(`Satellite: SUB-STATE subId=${subId} row=${row} col=${column} bitmapLen=${bitmap.length}`)
 
@@ -410,33 +451,47 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 			row,
 			column,
 			data: bitmap,
+			wide,
+			wideSub: parsed.wide,
 		})
 	}
 
 	// === Surface management (dynamic page buttons) ===
-	#ensureSurfaceSize(neededRows: number, neededCols: number): void {
+	/** @returns whether the surface was (re-)registered */
+	#ensureSurfaceSize(neededRows: number, neededCols: number): boolean {
 		const minRows = Math.max(4, neededRows)
 		const minCols = Math.max(8, neededCols)
 
 		if (this.#registeredSurface && this.#registeredSurface.rows >= minRows && this.#registeredSurface.cols >= minCols) {
-			return // already big enough
+			return false // already big enough
 		}
 
 		const rows = Math.max(minRows, this.#registeredSurface?.rows ?? 0)
 		const cols = Math.max(minCols, this.#registeredSurface?.cols ?? 0)
 
+		this.#registerSurface(rows, cols)
+		return true
+	}
+
+	#registerSurface(rows: number, cols: number): void {
 		// Remove existing surface if registered
 		if (this.#registeredSurface) {
 			this.#sendMessage('REMOVE-DEVICE', { DEVICEID: this.#deviceId })
 		}
 
 		this.#registeredSurface = { rows, cols }
+		this.#manifestMode = useManifest(this.#features)
+		this.#registeredWideKeys = this.#manifestMode ? new Set(this.#wideDynamicKeys) : new Set()
+
+		// Per-control bitmap sizes need a LAYOUT_MANIFEST; otherwise describe a plain grid of square keys
+		const layoutArgs: SatelliteMessageArgs = this.#manifestMode
+			? { LAYOUT_MANIFEST: encodeBase64Json(buildLayoutManifest(rows, cols, this.#wideDynamicKeys)) }
+			: { KEYS_TOTAL: rows * cols, KEYS_PER_ROW: cols, BITMAPS: 72 }
+
 		this.#sendMessage('ADD-DEVICE', {
 			DEVICEID: this.#deviceId,
 			PRODUCT_NAME: 'Elgato Stream Deck Plugin',
-			KEYS_TOTAL: rows * cols,
-			KEYS_PER_ROW: cols,
-			BITMAPS: 72,
+			...layoutArgs,
 			BRIGHTNESS: false,
 			// Request a compressed bitmap encoding when one was negotiated (API v1.12+);
 			// omitting it keeps Companion's default raw `rgb` encoding
@@ -444,11 +499,40 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		})
 	}
 
+	#scheduleReRegister(): void {
+		if (!this.isConnected || !useManifest(this.#features)) return
+		this.#clearReRegisterTimer()
+		this.#reRegisterTimer = setTimeout(() => {
+			this.#reRegisterTimer = null
+			// Same grid, new manifest; #registerSurface removes the old registration first
+			const surface = this.#registeredSurface
+			if (this.isConnected && surface) this.#registerSurface(surface.rows, surface.cols)
+		}, REREGISTER_DEBOUNCE)
+	}
+
+	#clearReRegisterTimer(): void {
+		if (this.#reRegisterTimer) {
+			clearTimeout(this.#reRegisterTimer)
+			this.#reRegisterTimer = null
+		}
+	}
+
+	// KEY or CONTROLID addressing a dynamic page control, depending on how the surface was registered
+	#dynamicControlArgs(row: number, column: number): SatelliteMessageArgs {
+		if (this.#manifestMode) return { CONTROLID: `${row}/${column}` }
+		const cols = this.#registeredSurface?.cols ?? 8
+		return { KEY: row * cols + column }
+	}
+
+	#subId(page: number, row: number, column: number, wide: boolean): string {
+		return wide ? wideSubId(page, row, column) : `${page}/${row}/${column}`
+	}
+
 	#reRegisterSurface(): void {
-		// Compute needed size from tracked dynamic keys
+		// Compute needed size from tracked dynamic keys (wide ones may outlive a square request for the same cell)
 		let maxRow = 3
 		let maxCol = 7
-		for (const key of this.#dynamicKeys) {
+		for (const key of [...this.#dynamicKeys, ...this.#wideDynamicKeys]) {
 			const parts = key.split('/')
 			maxRow = Math.max(maxRow, parseInt(parts[0], 10))
 			maxCol = Math.max(maxCol, parseInt(parts[1], 10))
@@ -458,97 +542,96 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 	}
 
 	// === Button actions ===
-	keyDown(page: number | null, row: number, column: number): void {
+	keyDown(page: number | null, row: number, column: number, wide = false): void {
+		this.#sendPress(page, row, column, wide, true)
+	}
+
+	keyUp(page: number | null, row: number, column: number, wide = false): void {
+		this.#sendPress(page, row, column, wide, false)
+	}
+
+	#sendPress(page: number | null, row: number, column: number, wide: boolean, pressed: boolean): void {
 		if (page === null) {
 			// Dynamic page: press on surface
-			const cols = this.#registeredSurface?.cols ?? 8
 			this.#sendMessage('KEY-PRESS', {
 				DEVICEID: this.#deviceId,
-				KEY: row * cols + column,
-				PRESSED: true,
+				...this.#dynamicControlArgs(row, column),
+				PRESSED: pressed,
 			})
 		} else if (this.#features.subscriptions) {
 			// Static page: subscription press
 			this.#sendMessage('SUB-PRESS', {
-				SUBID: `${page}/${row}/${column}`,
-				PRESSED: true,
+				SUBID: this.#subId(page, row, column, wide),
+				PRESSED: pressed,
 			})
 		}
 	}
 
-	keyUp(page: number | null, row: number, column: number): void {
-		if (page === null) {
-			const cols = this.#registeredSurface?.cols ?? 8
-			this.#sendMessage('KEY-PRESS', {
-				DEVICEID: this.#deviceId,
-				KEY: row * cols + column,
-				PRESSED: false,
-			})
-		} else if (this.#features.subscriptions) {
-			this.#sendMessage('SUB-PRESS', {
-				SUBID: `${page}/${row}/${column}`,
-				PRESSED: false,
-			})
-		}
-	}
-
-	rotate(page: number | null, row: number, column: number, ticks: number): void {
+	rotate(page: number | null, row: number, column: number, ticks: number, wide = false): void {
 		if (ticks === 0) return
 
 		if (this.#features.rotaryAmount) {
 			// API v1.14+: a single message carrying the signed step count
-			this.#sendRotate(page, row, column, ticks)
+			this.#sendRotate(page, row, column, ticks, wide)
 		} else {
 			// Older APIs: one message per step, DIRECTION=1 clockwise / 0 counter-clockwise
 			const direction = ticks > 0 ? 1 : 0
 			for (let i = 0; i < Math.abs(ticks); i++) {
-				this.#sendRotate(page, row, column, direction)
+				this.#sendRotate(page, row, column, direction, wide)
 			}
 		}
 	}
 
-	#sendRotate(page: number | null, row: number, column: number, direction: number): void {
+	#sendRotate(page: number | null, row: number, column: number, direction: number, wide: boolean): void {
 		if (page === null) {
-			const cols = this.#registeredSurface?.cols ?? 8
 			this.#sendMessage('KEY-ROTATE', {
 				DEVICEID: this.#deviceId,
-				KEY: row * cols + column,
+				...this.#dynamicControlArgs(row, column),
 				DIRECTION: direction,
 			})
 		} else if (this.#features.subscriptions) {
 			this.#sendMessage('SUB-ROTATE', {
-				SUBID: `${page}/${row}/${column}`,
+				SUBID: this.#subId(page, row, column, wide),
 				DIRECTION: direction,
 			})
 		}
 	}
 
 	// === Subscription management ===
-	requestButton(page: number | null, row: number, column: number): void {
+	requestButton(page: number | null, row: number, column: number, wide = false): void {
 		if (page === null) {
 			// Dynamic: register surface key
 			const key = `${row}/${column}`
-			this.#dynamicKeys.add(key)
+			const wideChanged = wide && !this.#wideDynamicKeys.has(key)
+			if (wide) this.#wideDynamicKeys.add(key)
+			else this.#dynamicKeys.add(key)
 			if (this.isConnected) {
-				this.#ensureSurfaceSize(row + 1, column + 1)
+				// A fresh registration already includes the new wide cell
+				const registered = this.#ensureSurfaceSize(row + 1, column + 1)
+				if (wideChanged && !registered) this.#scheduleReRegister()
 			}
 		} else {
 			// Static: subscribe to button (only if server supports subscriptions)
-			const subId = `${page}/${row}/${column}`
-			this.#subscriptions.set(subId, { page, row, column })
+			const subId = this.#subId(page, row, column, wide)
+			this.#subscriptions.set(subId, { page, row, column, wide })
 			if (this.isConnected && this.#features.subscriptions) {
-				this.#sendSubscribe(page, row, column)
+				this.#sendSubscribe(page, row, column, wide)
 			}
 		}
 	}
 
-	unrequestButton(page: number | null, row: number, column: number): void {
+	unrequestButton(page: number | null, row: number, column: number, wide = false): void {
 		if (page === null) {
 			const key = `${row}/${column}`
-			this.#dynamicKeys.delete(key)
+			if (wide) {
+				// The cell goes back to square; a square button on it keeps its subscription
+				if (this.#wideDynamicKeys.delete(key)) this.#scheduleReRegister()
+			} else {
+				this.#dynamicKeys.delete(key)
+			}
 			// Note: we don't shrink the surface, that would be disruptive
 		} else {
-			const subId = `${page}/${row}/${column}`
+			const subId = this.#subId(page, row, column, wide)
 			this.#subscriptions.delete(subId)
 			if (this.isConnected && this.#features.subscriptions) {
 				this.#sendMessage('REMOVE-SUB', { SUBID: subId })
@@ -556,12 +639,17 @@ export class SatelliteClient extends EventEmitter<SatelliteClientEvents> {
 		}
 	}
 
-	#sendSubscribe(page: number, row: number, column: number): void {
-		const subId = `${page}/${row}/${column}`
+	#sendSubscribe(page: number, row: number, column: number, wide: boolean): void {
+		const location = `${page}/${row}/${column}`
+		// A STYLE replaces BITMAP, letting the subscription ask for a non-square bitmap
+		const styleArgs: SatelliteMessageArgs =
+			wide && this.#features.nonSquareBitmaps
+				? { STYLE: encodeBase64Json({ bitmap: WIDE_BITMAP }) }
+				: { BITMAP: SQUARE_BITMAP.w }
 		this.#sendMessage('ADD-SUB', {
-			SUBID: subId,
-			LOCATION: subId,
-			BITMAP: 72,
+			SUBID: this.#subId(page, row, column, wide),
+			LOCATION: location,
+			...styleArgs,
 			// Request the negotiated compressed bitmap encoding for this subscription (API v1.12+)
 			...this.#bitmapFormatArgs(),
 		})

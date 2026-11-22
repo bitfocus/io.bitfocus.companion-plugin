@@ -10,6 +10,8 @@ export type FillImageMessage = {
 	keyIndex: number | undefined
 	row: number | undefined
 	column: number | undefined
+	wide?: boolean // bitmap is wide (200x100) instead of square
+	wideSub?: boolean // static page image for a wide dial subscription; undefined when the connection has none
 } & ({ png: true; data: string } | { png: undefined; data: Buffer | { data: number[] } })
 
 interface ConnectionManagerEvents {
@@ -287,6 +289,8 @@ class ConnectionManager extends EventEmitter<ConnectionManagerEvents> {
 						keyIndex: undefined,
 						row: satData.row,
 						column: satData.column,
+						wide: satData.wide,
+						wideSub: satData.wideSub,
 						png: true,
 						data: satData.data,
 					})
@@ -299,6 +303,8 @@ class ConnectionManager extends EventEmitter<ConnectionManagerEvents> {
 						keyIndex: undefined,
 						row: satData.row,
 						column: satData.column,
+						wide: satData.wide,
+						wideSub: satData.wideSub,
 						png: undefined,
 						data: bytes,
 					})
@@ -315,43 +321,44 @@ class ConnectionManager extends EventEmitter<ConnectionManagerEvents> {
 		})
 	}
 
-	keyDown(page: number | null, row: number, column: number): void {
+	// `wide` only reaches satellite connections; legacy has no wide bitmaps
+	keyDown(page: number | null, row: number, column: number, wide = false): void {
 		if (this.#impl instanceof LegacyConnection) {
 			this.#impl.keyDown(page, row, column)
 		} else if (this.#impl instanceof SatelliteClient) {
-			this.#impl.keyDown(page, row, column)
+			this.#impl.keyDown(page, row, column, wide)
 		}
 	}
 
-	keyUp(page: number | null, row: number, column: number): void {
+	keyUp(page: number | null, row: number, column: number, wide = false): void {
 		if (this.#impl instanceof LegacyConnection) {
 			this.#impl.keyUp(page, row, column)
 		} else if (this.#impl instanceof SatelliteClient) {
-			this.#impl.keyUp(page, row, column)
+			this.#impl.keyUp(page, row, column, wide)
 		}
 	}
 
-	rotate(page: number | null, row: number, column: number, ticks: number): void {
+	rotate(page: number | null, row: number, column: number, ticks: number, wide = false): void {
 		if (this.#impl instanceof LegacyConnection) {
 			this.#impl.rotate(page, row, column, ticks)
 		} else if (this.#impl instanceof SatelliteClient) {
-			this.#impl.rotate(page, row, column, ticks)
+			this.#impl.rotate(page, row, column, ticks, wide)
 		}
 	}
 
-	requestButton(page: number | null, row: number, column: number): void {
+	requestButton(page: number | null, row: number, column: number, wide = false): void {
 		if (this.#impl instanceof LegacyConnection) {
 			this.#impl.requestButton(page, row, column)
 		} else if (this.#impl instanceof SatelliteClient) {
-			this.#impl.requestButton(page, row, column)
+			this.#impl.requestButton(page, row, column, wide)
 		}
 	}
 
-	unrequestButton(page: number | null, row: number, column: number): void {
+	unrequestButton(page: number | null, row: number, column: number, wide = false): void {
 		if (this.#impl instanceof LegacyConnection) {
 			this.#impl.unrequestButton(page, row, column)
 		} else if (this.#impl instanceof SatelliteClient) {
-			this.#impl.unrequestButton(page, row, column)
+			this.#impl.unrequestButton(page, row, column, wide)
 		}
 	}
 }
