@@ -1,20 +1,20 @@
-import { FillImageMessage } from './companion-connection'
+import type { FillImageMessage } from './companion-connection'
 import { PNG } from 'pngjs'
 
 // TODO - this is very inefficient
-export function dataToImageUrl(data: Buffer | { data: number[] }): string {
+export function dataToImageUrl(data: Buffer | { data: number[] }, width = 72, height = 72): string {
 	const png = new PNG({
-		width: 72,
-		height: 72,
+		width,
+		height,
 	})
 
 	const inputData = Buffer.isBuffer(data) ? data : Buffer.from(data.data)
 
 	// Transform the received RGB to RGBA
-	for (let y = 0; y < 72; y++) {
-		for (let x = 0; x < 72; x++) {
-			const from = (y * 72 + x) * 3
-			const to = (y * 72 + x) * 4
+	for (let y = 0; y < height; y++) {
+		for (let x = 0; x < width; x++) {
+			const from = (y * width + x) * 3
+			const to = (y * width + x) * 4
 
 			png.data.writeUint8(inputData.readUint8(from), to)
 			png.data.writeUint8(inputData.readUint8(from + 1), to + 1)
